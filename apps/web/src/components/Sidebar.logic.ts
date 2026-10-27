@@ -1,7 +1,7 @@
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { resolveThreadWorkingStartedAt } from "@t3tools/client-runtime/state/models";
-import { isShownUnderParent } from "@t3tools/client-runtime/state/threads";
+import { isShownUnderParent, type OlderSettledScope } from "@t3tools/client-runtime/state/threads";
 import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@t3tools/shared/threadPullRequests";
 import * as React from "react";
@@ -19,6 +19,7 @@ import {
 } from "@t3tools/client-runtime/state/thread-search";
 import { foldSearchQuery, rankSearchItems, scoreThreadSearch } from "@t3tools/shared/paletteSearch";
 import {
+  ProjectId,
   type ContextMenuItem,
   type EnvironmentId,
   type ResolvedKeybindingsConfig,
@@ -600,7 +601,7 @@ export function filterSidebarV2VisibleThreads<
   },
 >(
   threads: readonly T[],
-  scopedProjectKeys: ReadonlySet<string> | null,
+  scope: SidebarThreadScope | null,
   delegatedUnderParent: ReadonlySet<string>,
 ): T[] {
   return threads.filter(
@@ -611,8 +612,71 @@ export function filterSidebarV2VisibleThreads<
         thread.lineage,
         delegatedUnderParent,
       ) &&
-      (scopedProjectKeys === null ||
-        scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
+      isInSidebarThreadScope(scope, thread),
+  );
+}
+
+/** The sidebar's filter; `null` lists every environment and project. */
+export interface SidebarThreadScope {
+  readonly environmentId: string | null;
+  /** `environmentId:projectId` keys of the chosen project groups' members. */
+  readonly projectKeys: ReadonlySet<string> | null;
+}
+
+export function resolveSidebarThreadScope(
+  environmentId: string | null,
+  projectKeys: ReadonlySet<string> | null,
+): SidebarThreadScope | null {
+  return environmentId === null && projectKeys === null ? null : { environmentId, projectKeys };
+}
+
+/** A stored environment scope applies only while it names one of several known environments. */
+export function resolveSidebarEnvironmentScopeId(
+  storedId: string | null,
+  environmentIds: ReadonlyArray<EnvironmentId>,
+): EnvironmentId | null {
+  if (storedId === null || environmentIds.length < 2) return null;
+  return environmentIds.find((environmentId) => environmentId === storedId) ?? null;
+}
+
+export function projectGroupHasEnvironment(
+  group: { readonly memberProjectRefs: ReadonlyArray<{ readonly environmentId: string }> },
+  environmentId: string,
+): boolean {
+  return group.memberProjectRefs.some((projectRef) => projectRef.environmentId === environmentId);
+}
+
+/** The older-settled paging scope per environment: the scoped projects there, or every project. */
+export function olderSettledScopes(
+  allEnvironmentIds: ReadonlyArray<EnvironmentId>,
+  threadScope: SidebarThreadScope | null,
+): ReadonlyArray<OlderSettledScope> {
+  const scopedEnvironmentId = threadScope?.environmentId ?? null;
+  const environmentIds =
+    scopedEnvironmentId === null
+      ? allEnvironmentIds
+      : allEnvironmentIds.filter((environmentId) => environmentId === scopedEnvironmentId);
+  const scopedProjectKeys = threadScope?.projectKeys ?? null;
+  if (scopedProjectKeys === null) {
+    return environmentIds.map((environmentId) => ({ environmentId, projectIds: null }));
+  }
+  return environmentIds.flatMap((environmentId) => {
+    const prefix = `${environmentId}:`;
+    const projectIds = [...scopedProjectKeys].flatMap((key) =>
+      key.startsWith(prefix) ? [ProjectId.make(key.slice(prefix.length))] : [],
+    );
+    return projectIds.length === 0 ? [] : [{ environmentId, projectIds }];
+  });
+}
+
+export function isInSidebarThreadScope(
+  scope: SidebarThreadScope | null,
+  item: { readonly environmentId: string; readonly projectId: string },
+): boolean {
+  if (scope === null) return true;
+  return (
+    (scope.environmentId === null || scope.environmentId === item.environmentId) &&
+    (scope.projectKeys === null || scope.projectKeys.has(`${item.environmentId}:${item.projectId}`))
   );
 }
 
@@ -1183,21 +1247,21 @@ export function pullRequestMatchesSearchQuery(
   return normalizedQuery.split(" ").every((token) => haystack.includes(token));
 }
 
-export const ADD_PROJECT_SCOPE_ITEM_VALUE = "add-project";
+export interface SidebarScopeItem {
+  readonly kind: "environment" | "project" | "add-project";
+  /** `null` is the section's "All" item, or the "Add project" action. */
+  readonly value: string | null;
+  readonly label: string;
+}
 
-export function filterSidebarProjectScopeItems<TItem extends { readonly value: string }>(input: {
+export function filterSidebarProjectScopeItems<TItem extends SidebarScopeItem>(input: {
   items: readonly TItem[];
   query: string;
   matches: (item: TItem, query: string) => boolean;
 }): readonly TItem[] {
   const query = input.query.trim();
   if (query.length === 0) return input.items;
-  return input.items.filter(
-    (item) =>
-      item.value !== "all" &&
-      item.value !== ADD_PROJECT_SCOPE_ITEM_VALUE &&
-      input.matches(item, query),
-  );
+  return input.items.filter((item) => item.value !== null && input.matches(item, query));
 }
 
 interface SidebarProjectScopeMenuState {

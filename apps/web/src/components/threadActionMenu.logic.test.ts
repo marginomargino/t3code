@@ -6,6 +6,7 @@ const baseState: ThreadActionMenuState = {
   canOperate: true,
   branch: null,
   projectFilter: null,
+  environmentFilter: null,
   isPinned: false,
   isSettled: false,
   autoSettleEnabled: true,
@@ -33,6 +34,8 @@ describe("buildThreadActionMenuItems", () => {
       const items = buildThreadActionMenuItems({
         ...baseState,
         canOperate: false,
+        projectFilter: { label: "t3code", isActive: reversed },
+        environmentFilter: { label: "Remote", isActive: reversed },
         isPinned: reversed,
         isSettled: reversed,
         isSnoozed: reversed,
