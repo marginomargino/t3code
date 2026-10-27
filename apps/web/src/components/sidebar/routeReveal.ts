@@ -1,6 +1,10 @@
 import { useRef } from "react";
 
-import { filterSidebarV2VisibleThreads } from "../Sidebar.logic";
+import {
+  filterSidebarV2VisibleThreads,
+  isInSidebarThreadScope,
+  type SidebarThreadScope,
+} from "../Sidebar.logic";
 
 // AppSidebarLayout owns this so drawer and Settings remounts preserve the chosen project scope.
 // Only route changes may widen that scope; scroll position is lost on remount.
@@ -50,23 +54,35 @@ type RevealableThread = Parameters<typeof filterSidebarV2VisibleThreads>[0][numb
 // Render records the route before deciding, so the first render of a new route
 // already widens the scope. Only a route reveal widens: the once-per-mount
 // scroll never changes a scope the user chose.
+// Only the parts of the scope that hide the thread widen.
 export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
   readonly reveal: SidebarRouteReveal;
   readonly routeKey: string | null;
   readonly isSearching: boolean;
-  readonly scopedProjectKeys: ReadonlySet<string> | null;
+  readonly scope: SidebarThreadScope | null;
   readonly delegatedUnderParent: ReadonlySet<string>;
   readonly findThread: (key: string) => T | undefined;
-}): { readonly pendingKey: string | null; readonly widensScope: boolean } {
-  const { reveal, routeKey, isSearching, scopedProjectKeys, delegatedUnderParent, findThread } =
-    input;
+}): {
+  readonly pendingKey: string | null;
+  readonly widensEnvironment: boolean;
+  readonly widensProject: boolean;
+} {
+  const { reveal, routeKey, isSearching, scope, delegatedUnderParent, findThread } = input;
   const pendingKey = pendingSidebarRouteReveal(reveal, routeKey);
   // Search results replace the thread list; the reveal waits for it to return.
   const thread = pendingKey === null || isSearching ? undefined : findThread(pendingKey);
-  const widensScope =
+  const hidden =
     thread !== undefined &&
-    scopedProjectKeys !== null &&
-    filterSidebarV2VisibleThreads([thread], scopedProjectKeys, delegatedUnderParent).length === 0 &&
+    scope !== null &&
+    filterSidebarV2VisibleThreads([thread], scope, delegatedUnderParent).length === 0 &&
     filterSidebarV2VisibleThreads([thread], null, delegatedUnderParent).length === 1;
-  return { pendingKey, widensScope };
+  if (!hidden) return { pendingKey, widensEnvironment: false, widensProject: false };
+  return {
+    pendingKey,
+    widensEnvironment: scope.environmentId !== null && scope.environmentId !== thread.environmentId,
+    widensProject: !isInSidebarThreadScope(
+      { environmentId: null, projectKeys: scope.projectKeys },
+      thread,
+    ),
+  };
 }

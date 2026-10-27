@@ -5,6 +5,7 @@ export type ThreadActionMenuId =
   | "find"
   | "new-thread-on-branch"
   | "filter-by-project"
+  | "filter-by-environment"
   | "turn-into-project"
   | "project-settings"
   | "pin"
@@ -75,6 +76,10 @@ export interface ThreadActionMenuState {
     readonly label: string;
     readonly isActive: boolean;
   } | null;
+  readonly environmentFilter: {
+    readonly label: string;
+    readonly isActive: boolean;
+  } | null;
   readonly isPinned: boolean;
   readonly isSettled: boolean;
   readonly autoSettleEnabled: boolean;
@@ -102,6 +107,8 @@ export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean
   return ![
     "find",
     "new-thread-on-branch",
+    "filter-by-project",
+    "filter-by-environment",
     "project-settings",
     "mark-unread",
     "share-guest",
@@ -189,6 +196,17 @@ export function buildThreadActionMenuItems(
               ? "Show all projects"
               : `Filter by ${state.projectFilter.label}`,
             icon: "folder-tree",
+          },
+        ]
+      : []),
+    ...(state.environmentFilter
+      ? [
+          {
+            id: "filter-by-environment" as const,
+            label: state.environmentFilter.isActive
+              ? "Show all environments"
+              : `Filter by ${state.environmentFilter.label}`,
+            icon: "server",
           },
         ]
       : []),
