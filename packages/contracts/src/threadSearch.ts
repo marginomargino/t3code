@@ -51,6 +51,31 @@ export const OrchestrationSearchThreadsResult = Schema.Struct({
 });
 export type OrchestrationSearchThreadsResult = typeof OrchestrationSearchThreadsResult.Type;
 
+/** A semantic search over the user's recent Claude threads, ranked by a text generation model. */
+export const OrchestrationFindThreadsByDescriptionInput = Schema.Struct({
+  description: TrimmedString.check(Schema.isMinLength(3), Schema.isMaxLength(500)),
+});
+export type OrchestrationFindThreadsByDescriptionInput =
+  typeof OrchestrationFindThreadsByDescriptionInput.Type;
+
+export const OrchestrationFoundThread = Schema.Struct({
+  threadId: ThreadId,
+  title: Schema.String,
+  projectTitle: Schema.String,
+  updatedAt: IsoDateTime,
+  /** Archived threads open only after unarchiving. */
+  archived: Schema.Boolean,
+  recap: Schema.String,
+  reason: Schema.String,
+});
+export type OrchestrationFoundThread = typeof OrchestrationFoundThread.Type;
+
+export const OrchestrationFindThreadsByDescriptionResult = Schema.Struct({
+  matches: Schema.Array(OrchestrationFoundThread),
+});
+export type OrchestrationFindThreadsByDescriptionResult =
+  typeof OrchestrationFindThreadsByDescriptionResult.Type;
+
 export class OrchestrationSearchThreadsError extends Schema.TaggedError<OrchestrationSearchThreadsError>()(
   "OrchestrationSearchThreadsError",
   {

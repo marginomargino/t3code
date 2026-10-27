@@ -289,6 +289,7 @@ function createTextGeneration(
         title: "Update workflow",
       }),
     generateReviewGuide: () => Effect.succeed({ stops: [] }),
+    findThreads: () => Effect.succeed({ matches: [] }),
     ...overrides,
   };
 
@@ -338,6 +339,7 @@ function createTextGeneration(
         ),
       ),
     generateReviewGuide: (input) => implementation.generateReviewGuide(input),
+    findThreads: (input) => implementation.findThreads(input),
   };
 }
 

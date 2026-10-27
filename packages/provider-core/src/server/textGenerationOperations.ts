@@ -11,6 +11,7 @@ import {
   buildCommitMessagePrompt,
   buildPrContentPrompt,
   buildReviewGuidePrompt,
+  buildThreadFindPrompt,
   buildThreadTitlePrompt,
 } from "./textGenerationPrompts.ts";
 import {
@@ -167,11 +168,23 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
     });
   });
 
+  const findThreads: ProviderTextGeneration["findThreads"] = Effect.fn(`${name}.findThreads`)(
+    function* (input) {
+      return yield* run({
+        operation: "findThreads",
+        cwd: input.cwd,
+        modelSelection: input.modelSelection,
+        ...buildThreadFindPrompt(input),
+      });
+    },
+  );
+
   return {
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
     generateReviewGuide,
+    findThreads,
   } satisfies ProviderTextGeneration;
 }

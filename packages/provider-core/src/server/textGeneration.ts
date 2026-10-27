@@ -97,6 +97,32 @@ export type ReviewGuideGenerationResult = Omit<
   "headSha" | "generatedAt" | "modelSelection"
 >;
 
+export interface ThreadFindCandidate {
+  readonly threadId: string;
+  readonly title: string;
+  readonly project: string;
+  readonly branch: string | null;
+  readonly updatedAt: string;
+  /** The user's messages in order, already trimmed to the catalog budget. */
+  readonly userMessages: string;
+  readonly lastReply: string;
+}
+
+export interface ThreadFindInput {
+  cwd: string;
+  description: string;
+  threads: ReadonlyArray<ThreadFindCandidate>;
+  modelSelection: ModelSelection;
+}
+
+export interface ThreadFindResult {
+  readonly matches: ReadonlyArray<{
+    readonly threadId: string;
+    readonly recap: string;
+    readonly reason: string;
+  }>;
+}
+
 export interface ProviderTextGeneration {
   readonly generateCommitMessage: (
     input: CommitMessageGenerationInput,
@@ -117,4 +143,8 @@ export interface ProviderTextGeneration {
   readonly generateReviewGuide: (
     input: ReviewGuideGenerationInput,
   ) => Effect.Effect<ReviewGuideGenerationResult, TextGenerationError>;
+
+  readonly findThreads: (
+    input: ThreadFindInput,
+  ) => Effect.Effect<ThreadFindResult, TextGenerationError>;
 }
