@@ -320,6 +320,7 @@ function createTextGeneration(
     generateReviewGuide: () => Effect.succeed({ stops: [] }),
     generateTranscriptionPostProcessing: () =>
       Effect.succeed({ transcription: "processed transcript" }),
+    findThreads: () => Effect.succeed({ matches: [] }),
     ...overrides,
   };
 
@@ -371,6 +372,7 @@ function createTextGeneration(
     generateReviewGuide: (input) => implementation.generateReviewGuide(input),
     generateTranscriptionPostProcessing: (input) =>
       implementation.generateTranscriptionPostProcessing(input),
+    findThreads: (input) => implementation.findThreads(input),
   };
 }
 
