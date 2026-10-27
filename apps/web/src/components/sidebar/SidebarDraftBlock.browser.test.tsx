@@ -29,7 +29,7 @@ it("keeps draft previews current through edits, promotion and removal", async ()
         <SidebarDraftBlock
           projectByKey={new Map()}
           projectDisplayNameByKey={new Map()}
-          scopedProjectKeys={null}
+          threadScope={null}
           routeDraftId={null}
           onNavigateToDraft={vi.fn()}
           onDraftContextMenu={vi.fn()}
