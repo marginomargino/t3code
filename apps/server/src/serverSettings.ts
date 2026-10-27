@@ -55,6 +55,7 @@ import {
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
 import * as ManagedPolicy from "./policy/ManagedPolicy.ts";
 import { secretProviderDefinitions } from "./secrets/secretProviderDefinitions.ts";
+import { remoteSshDeviceHosts } from "./device/localSshDeviceHost.ts";
 import {
   readSecretFieldValues,
   sourceControlHostSecretName,
@@ -199,6 +200,24 @@ function ensureSecretProviderWritesAllowed(
   }
   return Effect.void;
 }
+/** The client-facing settings update shared by the WS RPC and MCP; callers own the span. */
+export const applyClientSettingsUpdate = Effect.fnUntraced(function* (
+  service: ServerSettingsService["Service"],
+  input: {
+    readonly patch: ServerSettingsPatch;
+    readonly providerInstanceMutation?: ProviderInstanceMutation | undefined;
+  },
+) {
+  const { patch, providerInstanceMutation } = input;
+  const deviceHosts = patch.deviceHosts
+    ? yield* remoteSshDeviceHosts(patch.deviceHosts)
+    : undefined;
+  const nextPatch = { ...patch, ...(deviceHosts ? { deviceHosts } : {}) };
+  const settings = yield* providerInstanceMutation === undefined
+    ? service.updateSettings(nextPatch)
+    : service.updateProviderInstance(providerInstanceMutation, nextPatch);
+  return redactServerSettingsForClient(settings);
+});
 
 function ensureProviderInstanceMutationAllowed(
   settings: ServerSettings,
