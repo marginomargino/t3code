@@ -1,10 +1,17 @@
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import {
   DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
+  ProjectId,
+  ProviderDriverKind,
   ProviderInstanceId,
+  SecretRequestError,
   ThreadId,
   type OrchestrationV2ThreadShell,
+  type ProviderInstanceConfig,
+  ProviderInstanceMutation,
+  type ServerSettings,
 } from "@t3tools/contracts";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -14,8 +21,10 @@ import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 
 import * as Environment from "../../../environment/ServerEnvironment.ts";
+import * as Keybindings from "../../../keybindings.ts";
 import * as ThreadCommandExecutor from "../../../orchestration-v2/ThreadCommandExecutor.ts";
 import * as ThreadManagement from "../../../orchestration-v2/ThreadManagementService.ts";
+import * as SecretRequests from "../../../secrets/SecretRequests.ts";
 import * as Settings from "../../../serverSettings.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
@@ -93,5 +102,302 @@ it.effect("refuses a preferences update when the caller's turn ends while it wai
         ),
       ),
     );
+  }),
+);
+
+const antigravity = ProviderInstanceId.make("antigravity");
+const antigravityDriver = ProviderDriverKind.make("antigravity");
+
+const settingsHarness = Effect.fn(function* (initial: ServerSettings) {
+  const mutations = yield* Ref.make<ReadonlyArray<ProviderInstanceMutation>>([]);
+  const patches = yield* Ref.make<ReadonlyArray<unknown>>([]);
+  const secrets = yield* Ref.make<ReadonlyMap<string, string>>(
+    new Map([["ref-1", "sk-from-user"]]),
+  );
+  const consumedBy = yield* Ref.make<ReadonlyArray<ProjectId>>([]);
+  const upserts = yield* Ref.make<ReadonlyArray<string>>([]);
+  const layer = McpToolAccess.HandlersLayer.layer(EnvironmentHandlers.layer).pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        ThreadCommandExecutor.layer,
+        Layer.succeed(McpInvocationContext.McpInvocationContext, {
+          environmentId,
+          requestNamespace: "provider:settings",
+          thread: {
+            threadId,
+            providerSessionId: "provider:settings",
+            providerInstanceId: ProviderInstanceId.make("codex"),
+          },
+          client: undefined,
+          capabilities: new Set(["orchestration" as const]),
+          issuedAt: 0,
+        }),
+        Layer.mock(ThreadManagement.ThreadManagementService)({
+          getThreadShell: () => Effect.succeed(liveThreadShell(threadId)),
+        }),
+        Layer.mock(Environment.ServerEnvironment)({
+          getDescriptor: Effect.succeed({
+            environmentId,
+            label: "Test",
+            platform: { os: "linux", arch: "x64" },
+            serverVersion: "0.0.0",
+            capabilities: { repositoryIdentity: false },
+          }),
+        }),
+        Layer.mock(Settings.ServerSettingsService)({
+          getSettings: Effect.succeed(initial),
+          updateSettings: (patch) =>
+            Ref.update(patches, (all) => [...all, patch]).pipe(Effect.as(initial)),
+          updateProviderInstance: (mutation) =>
+            Ref.update(mutations, (all) => [...all, mutation]).pipe(
+              Effect.as(Settings.applyProviderInstanceMutation(initial, mutation)),
+            ),
+        }),
+        Layer.mock(Keybindings.Keybindings)({
+          getSnapshot: Effect.succeed({ keybindings: [], issues: [] }),
+          upsertKeybindingRule: (rule) =>
+            Ref.update(upserts, (all) => [...all, rule.command]).pipe(Effect.as([])),
+        }),
+        Layer.mock(SecretRequests.SecretRequests)({
+          consume: ({ ref, projectId }) =>
+            Effect.gen(function* () {
+              const value = (yield* Ref.get(secrets)).get(ref);
+              if (value === undefined)
+                return yield* new SecretRequestError({ reason: "ref_unavailable" });
+              yield* Ref.update(secrets, (stored) => {
+                const next = new Map(stored);
+                next.delete(ref);
+                return next;
+              });
+              yield* Ref.update(consumedBy, (all) => [...all, projectId]);
+              return value;
+            }),
+        }),
+        NodeServices.layer,
+      ),
+    ),
+  );
+  const read = Effect.gen(function* () {
+    const toolkit = yield* EnvironmentToolkit;
+    const results = yield* toolkit
+      .handle("t3_settings_read", {})
+      .pipe(Stream.unwrap, Stream.runCollect);
+    return results.at(-1)?.encodedResult;
+  }).pipe(Effect.provide(layer));
+  const update = (params: {
+    readonly patch?: Readonly<Record<string, unknown>>;
+    readonly providerInstanceMutation?: typeof ProviderInstanceMutation.Encoded;
+  }) =>
+    Effect.gen(function* () {
+      const toolkit = yield* EnvironmentToolkit;
+      const results = yield* toolkit
+        .handle("t3_settings_update", params)
+        .pipe(Stream.unwrap, Stream.runCollect);
+      return results.at(-1)?.encodedResult;
+    }).pipe(Effect.provide(layer));
+  const upsertKeybinding = (params: { readonly key: string; readonly command: string }) =>
+    Effect.gen(function* () {
+      const toolkit = yield* EnvironmentToolkit;
+      const results = yield* toolkit
+        .handle("t3_keybinding_upsert", params)
+        .pipe(Stream.unwrap, Stream.runCollect);
+      return results.at(-1)?.encodedResult;
+    }).pipe(Effect.provide(layer));
+  return { read, update, upsertKeybinding, mutations, patches, consumedBy, upserts };
+});
+
+const upsertAntigravity = (instance: ProviderInstanceConfig): ProviderInstanceMutation => ({
+  operation: "upsert",
+  instanceId: antigravity,
+  instance,
+});
+
+it.effect("returns every setting with provider secrets masked", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness({
+      ...DEFAULT_SERVER_SETTINGS,
+      providerInstances: {
+        [antigravity]: { driver: antigravityDriver, config: { apiKey: "sk-stored" } },
+      },
+    });
+    const result = yield* harness.read;
+    expect(JSON.stringify(result)).not.toContain("sk-stored");
+    expect(result).toMatchObject({
+      settings: { providerInstances: { [antigravity]: { driver: antigravityDriver } } },
+    });
+  }),
+);
+
+it.effect.each<{
+  readonly name: string;
+  readonly instance: ProviderInstanceConfig;
+  readonly written: boolean;
+}>([
+  {
+    name: "a raw secret config field",
+    instance: { driver: antigravityDriver, config: { apiKey: "sk-raw" } },
+    written: false,
+  },
+  {
+    name: "a raw sensitive environment variable",
+    instance: {
+      driver: antigravityDriver,
+      environment: [{ name: "API_TOKEN", value: "tok-raw", sensitive: true }],
+    },
+    written: false,
+  },
+  {
+    name: "a plain environment variable",
+    instance: {
+      driver: antigravityDriver,
+      environment: [{ name: "REGION", value: "eu", sensitive: false }],
+    },
+    written: true,
+  },
+  {
+    name: "a masked secret it read earlier",
+    instance: { driver: antigravityDriver, config: { apiKey: "••••••" } },
+    written: true,
+  },
+  {
+    name: "a cleared secret",
+    instance: { driver: antigravityDriver, config: { apiKey: "" } },
+    written: true,
+  },
+])("writes $name only when it is not a raw secret", ({ instance, written }) =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const result = yield* harness.update({ providerInstanceMutation: upsertAntigravity(instance) });
+    expect((yield* Ref.get(harness.mutations)).length).toBe(written ? 1 : 0);
+    if (!written) expect(result).toMatchObject({ code: "capability_denied" });
+  }),
+);
+
+it.effect("writes a secret from a one-use secretRef the user entered", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const mutation = upsertAntigravity({
+      driver: antigravityDriver,
+      config: { apiKey: "secretRef:ref-1" },
+    });
+    const first = yield* harness.update({ providerInstanceMutation: mutation });
+    expect(JSON.stringify(first)).not.toContain("sk-from-user");
+    expect(yield* Ref.get(harness.mutations)).toMatchObject([
+      { instance: { config: { apiKey: "sk-from-user" } } },
+    ]);
+    expect(yield* Ref.get(harness.consumedBy)).toEqual([ProjectId.make("project:mcp-test")]);
+
+    const again = yield* harness.update({ providerInstanceMutation: mutation });
+    expect(again).toMatchObject({ code: "invalid_request" });
+    expect((yield* Ref.get(harness.mutations)).length).toBe(1);
+  }),
+);
+
+it.effect("never writes a secretRef's value into a plain environment variable", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    yield* harness.update({
+      providerInstanceMutation: upsertAntigravity({
+        driver: antigravityDriver,
+        config: { apiKey: "secretRef:ref-1" },
+        environment: [{ name: "LEAK", value: "secretRef:ref-1", sensitive: false }],
+      }),
+    });
+    const written = JSON.stringify(yield* Ref.get(harness.mutations));
+    expect(written.match(/sk-from-user/g)).toHaveLength(1);
+  }),
+);
+
+it.effect("refuses a patch that does not match the settings schema", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const result = yield* harness.update({ patch: { newWorktreesStartFromOrigin: "yes" } });
+    expect(result).toMatchObject({ code: "invalid_request" });
+  }),
+);
+
+it.effect("refuses a patch that replaces every provider", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const result = yield* harness.update({ patch: { providerInstances: {} } });
+    expect(result).toMatchObject({ code: "invalid_request" });
+  }),
+);
+
+it.effect("saves a keybinding only for a command T3 knows", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const unknown = yield* harness.upsertKeybinding({ key: "mod+k", command: "thread.explode" });
+    expect(unknown).toMatchObject({ code: "invalid_request" });
+    yield* harness.upsertKeybinding({ key: "mod+k", command: "thread.stop" });
+    expect(yield* Ref.get(harness.upserts)).toEqual(["thread.stop"]);
+  }),
+);
+
+it.effect.each<{
+  readonly name: string;
+  readonly patch: Readonly<Record<string, unknown>>;
+  readonly written: unknown;
+}>([
+  {
+    name: "a source control host token",
+    patch: { sourceControlHosts: { gitcafe: { token: "secretRef:ref-1" } } },
+    written: { sourceControlHosts: { gitcafe: { token: "sk-from-user" } } },
+  },
+  {
+    name: "a usage limit management key, keeping a removed source",
+    patch: {
+      usageLimitSources: {
+        proxy: { kind: "cliproxy", url: "http://proxy.test", managementKey: "secretRef:ref-1" },
+        gone: null,
+      },
+    },
+    written: {
+      usageLimitSources: { proxy: { managementKey: "sk-from-user" }, gone: null },
+    },
+  },
+  {
+    name: "an EAS access token",
+    patch: {
+      easDeviceHosts: [{ kind: "eas", id: "eas-1", label: "EAS", accessToken: "secretRef:ref-1" }],
+    },
+    written: { easDeviceHosts: [{ accessToken: "sk-from-user" }] },
+  },
+])("writes $name from a secretRef and refuses it raw", ({ patch, written }) =>
+  Effect.gen(function* () {
+    const raw = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const refused = yield* raw.update({
+      patch: JSON.parse(JSON.stringify(patch).replace("secretRef:ref-1", "sk-raw")),
+    });
+    expect(refused).toMatchObject({ code: "capability_denied" });
+    expect(yield* Ref.get(raw.patches)).toEqual([]);
+
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    yield* harness.update({ patch });
+    expect(yield* Ref.get(harness.patches)).toMatchObject([written]);
+  }),
+);
+
+it.effect("spends no secretRef when an update carries a second, unusable ref", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const result = yield* harness.update({
+      providerInstanceMutation: upsertAntigravity({
+        driver: antigravityDriver,
+        config: { apiKey: "secretRef:ref-1" },
+        environment: [{ name: "TOKEN", value: "secretRef:bogus", sensitive: true }],
+      }),
+    });
+    expect(result).toMatchObject({ code: "invalid_request" });
+    expect(yield* Ref.get(harness.consumedBy)).toEqual([]);
+  }),
+);
+
+it.effect("refuses a patch with a field T3 does not have", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const result = yield* harness.update({ patch: { notASetting: true } });
+    expect(result).toMatchObject({ code: "invalid_request" });
+    expect(yield* Ref.get(harness.patches)).toEqual([]);
   }),
 );
