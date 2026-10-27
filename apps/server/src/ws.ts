@@ -169,6 +169,7 @@ import {
 } from "./orchestration-v2/WireProjection.ts";
 import { dedupeSnapshotBodies } from "@t3tools/shared/orchestrationV2DedupedBodies";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
+import * as ThreadFindByDescription from "./orchestration-v2/ThreadFindByDescription.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import { userFacingDispatchErrorMessage } from "./orchestration-v2/UserFacingErrors.ts";
@@ -1440,6 +1441,10 @@ export const layerWsRpc = (
       const scratchThreadPromotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
       const eventLoopMonitor = yield* EventLoopMonitor.EventLoopMonitor;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
+      const threadFindContext =
+        yield* Effect.context<
+          Effect.Services<ReturnType<typeof ThreadFindByDescription.findThreadsByDescription>>
+        >();
 
       const providerSessionsV2 = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const mcpAppRequests = yield* McpAppRequests.McpAppRequests;
@@ -2056,6 +2061,17 @@ export const layerWsRpc = (
               (cause) =>
                 new OrchestrationSearchThreadsError({
                   message: "Failed to search threads",
+                  cause,
+                }),
+            ),
+          ),
+        [ORCHESTRATION_V2_WS_METHODS.findThreadsByDescription]: (input) =>
+          ThreadFindByDescription.findThreadsByDescription(input).pipe(
+            Effect.provide(threadFindContext),
+            Effect.mapError(
+              (cause) =>
+                new OrchestrationSearchThreadsError({
+                  message: "Failed to find threads by description",
                   cause,
                 }),
             ),

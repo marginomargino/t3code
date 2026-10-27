@@ -4,7 +4,7 @@ import { limitTitleMessage } from "./threadTitleContext.ts";
 import type { BranchNamingOptions, ChatAttachment } from "@t3tools/contracts";
 
 import { limitSection } from "./textGenerationUtils.ts";
-import type { ReviewGuideStackLayer } from "./textGeneration.ts";
+import type { ReviewGuideStackLayer, ThreadFindCandidate } from "./textGeneration.ts";
 import type { TextGenerationPolicy } from "@t3tools/provider-core/server/textGenerationPolicy";
 
 const EARLIER_CONTENT_TRUNCATION_MARKER = "[Earlier content truncated]\n\n";
@@ -500,5 +500,46 @@ export function buildThreadTitlePrompt(input: ThreadTitlePromptInput) {
     needsRefinement: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   });
 
+  return { prompt, outputSchema };
+}
+
+export const THREAD_FIND_MAX_MATCHES = 8;
+
+export function buildThreadFindPrompt(input: {
+  readonly description: string;
+  readonly threads: ReadonlyArray<ThreadFindCandidate>;
+}) {
+  const catalog = input.threads
+    .map((thread) =>
+      [
+        `<thread id="${thread.threadId}">`,
+        `Title: ${thread.title}`,
+        `Project: ${thread.project}${thread.branch ? ` · branch ${thread.branch}` : ""}`,
+        `Last active: ${thread.updatedAt}`,
+        `User messages:\n${thread.userMessages}`,
+        thread.lastReply ? `Last agent reply: ${thread.lastReply}` : "",
+        "</thread>",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    )
+    .join("\n\n");
+  const prompt = `You find past coding-agent threads for a user who remembers them only vaguely.
+Match by meaning, not by shared words: the user describes what the work was about, in any language.
+
+Pick at most ${THREAD_FIND_MAX_MATCHES} threads from the catalog that fit the description, best first.
+For each: \`threadId\` exactly as in the catalog; \`recap\`: one short sentence on what the thread was about; \`reason\`: one short sentence on why it fits the description.
+Write recap and reason in the language of the description. If nothing fits, return an empty list. Never invent a threadId.
+
+Description:
+${input.description}
+
+Catalog:
+${catalog}`;
+  const outputSchema = Schema.Struct({
+    matches: Schema.Array(
+      Schema.Struct({ threadId: Schema.String, recap: Schema.String, reason: Schema.String }),
+    ),
+  });
   return { prompt, outputSchema };
 }
