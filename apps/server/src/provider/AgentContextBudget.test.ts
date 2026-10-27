@@ -43,6 +43,7 @@ import { IssueService } from "../issue/IssueService.ts";
 import { PullRequestReviewGuideService } from "../pullRequest/PullRequestReviewGuideService.ts";
 import { PullRequestService } from "../pullRequest/PullRequestService.ts";
 import { ScheduledTaskService } from "../scheduledTasks/ScheduledTaskService.ts";
+import { Keybindings } from "../keybindings.ts";
 import { SecretRequests } from "../secrets/SecretRequests.ts";
 import { FeedbackStore } from "../feedback/FeedbackStore.ts";
 import { AnalyticsService } from "../telemetry/AnalyticsService.ts";
@@ -67,6 +68,7 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(GitWorkflowService)({}),
   Layer.mock(TaskFolders)({}),
   Layer.mock(IssueService)({}),
+  Layer.mock(Keybindings)({}),
   Layer.mock(ManagedProjectFolders)({ namedProjectsRoot: "" }),
   Layer.mock(McpProviderSessions)({}),
   Layer.mock(OrchestratorV2)({}),
