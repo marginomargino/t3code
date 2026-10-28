@@ -7622,6 +7622,54 @@ describe("ClaudeAdapterV2 background wake turns", () => {
     close: (sdkMessages) => Queue.shutdown(sdkMessages),
   });
 
+  it.effect("resumes an imported session on its first T3 turn", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const configDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-claude-imported-session-",
+      });
+      const projectDir = path.join(configDir, "projects", "-workspace");
+      yield* fileSystem.makeDirectory(projectDir, { recursive: true });
+      yield* fileSystem.writeFileString(
+        path.join(projectDir, "imported-native-session.jsonl"),
+        `{"type":"user","message":{"role":"user","content":"hello"},"sessionId":"imported-native-session"}\n`,
+      );
+      const harness = yield* makeWakeHarnessWithOptions({
+        environment: { CLAUDE_CONFIG_DIR: configDir },
+      });
+      const providerThread = yield* harness.runtime.resumeThread({
+        providerThread: {
+          ...harness.providerThread,
+          nativeThreadRef: {
+            driver: ClaudeAdapterV2.CLAUDE_PROVIDER,
+            nativeId: "imported-native-session",
+            strength: "strong",
+          },
+        },
+      });
+      yield* harness.runtime.startTurn(
+        makeClaudeTestTurnInput({
+          threadId: harness.threadId,
+          providerThread,
+          now: yield* DateTime.now,
+          attemptId: RunAttemptId.make("first-imported-run"),
+          text: "Continue where we left off.",
+          attachments: [],
+          nativeThreadHasTurns: false,
+        }),
+      );
+      const options = harness.getOpenedOptions();
+      assert.equal(options?.resume, "imported-native-session");
+      assert.isUndefined(options?.sessionId);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+      ),
+    ),
+  );
+
   it.effect.each([
     { kind: "fork with inherited head", fork: true, headMessageId: "remapped-inherited-head" },
     { kind: "fork without recorded head", fork: true, headMessageId: undefined },
