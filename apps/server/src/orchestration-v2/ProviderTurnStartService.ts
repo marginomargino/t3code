@@ -115,6 +115,15 @@ const refusedBeforePrompt = (error: unknown): boolean =>
   PROMPT_REFUSAL_TAGS.some((tag) => Predicate.isTagged(error, tag)) ||
   (Predicate.hasProperty(error, "cause") && refusedBeforePrompt(error.cause));
 
+const forkParentNote = (threadId: ThreadId, title: string | null): string =>
+  [
+    "<t3_fork_parent>",
+    ...(title === null ? [] : [`title: ${title}`]),
+    `threadId: ${threadId}`,
+    "This conversation is a fork of that thread: it continues the parent's history from the fork point, and the parent may still be active. Read the parent with t3_thread_read(threadId); message it with t3_thread_send(threadId) to report back or coordinate when the user asks or the work calls for it.",
+    "</t3_fork_parent>",
+  ].join("\n");
+
 export interface ProviderTurnStartServiceV2Shape {
   readonly start: (input: {
     readonly threadId: ThreadId;
@@ -844,13 +853,33 @@ export const layer: Layer.Layer<
       });
       let effectiveHandoffs = handoffs;
       let resumeFellBack = false;
-      const userText = projectComposerContextForProvider({
+      const projectedUserText = projectComposerContextForProvider({
         text: message.text,
         records: message.context?.records ?? [],
       });
       // Codex and Claude parse /goal from the prompt, so it goes verbatim and history waits a turn.
       const goalDriver = session.driver === "codex" || session.driver === "claudeAgent";
       const goalCommand = goalDriver && parseGoalCommand(message) !== null;
+      const forkTransfer = goalCommand
+        ? undefined
+        : projection.contextTransfers.find(
+            (transfer) =>
+              transfer.type === "fork" &&
+              transfer.targetThreadId === input.threadId &&
+              transfer.targetRunId === run.id,
+          );
+      // A deleted parent must not block the fork's turn; the note just loses its title.
+      const forkParentTitle =
+        forkTransfer === undefined
+          ? null
+          : yield* projectionStore.getThreadRecords(forkTransfer.sourceThreadId, []).pipe(
+              Effect.map(({ thread }) => thread.title),
+              Effect.orElseSucceed(() => null),
+            );
+      const userText =
+        forkTransfer === undefined
+          ? projectedUserText
+          : `${projectedUserText}\n\n${forkParentNote(forkTransfer.sourceThreadId, forkParentTitle)}`;
       // The provider turn marks cancellation work delivered; restart continuations use their own text or resume natively.
       const noteContinuation = isRestartNoteContinuation(
         run,
