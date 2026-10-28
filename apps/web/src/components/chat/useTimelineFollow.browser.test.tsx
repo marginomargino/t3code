@@ -10,7 +10,6 @@ import { expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../../test/render";
 import type { TimelineEntry } from "../../session-logic";
-import type { ChatComposerHandle } from "./ChatComposer";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { useTimelineFollow } from "./useTimelineFollow";
 
@@ -128,7 +127,6 @@ const serverProjection = (thread: Thread): ThreadStructure | null =>
 
 function Timeline({ thread }: { thread: Thread }) {
   const listRef = useRef<LegendListRef | null>(null);
-  const composerRef = useRef<ChatComposerHandle | null>(null);
   const [anchor, setAnchor] = useState<{ threadKey: string | null; messageId: MessageId | null }>({
     threadKey: "thread",
     messageId: null,
@@ -150,7 +148,6 @@ function Timeline({ thread }: { thread: Thread }) {
     onTimelineFooterGrowStable,
   } = useTimelineFollow({
     legendListRef: listRef,
-    composerRef,
     composerTimelineInset: thread.composerInset,
     routeThreadKey: "environment-local:thread-follow",
     activeThreadKey: "thread",
