@@ -1,7 +1,12 @@
 import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { expect, it } from "vite-plus/test";
 
-import { settleAiThreadFind, startAiThreadFind, useAiThreadFindStore } from "./aiThreadFindStore";
+import {
+  dismissAiThreadFind,
+  settleAiThreadFind,
+  startAiThreadFind,
+  useAiThreadFindStore,
+} from "./aiThreadFindStore";
 
 const environmentId = EnvironmentId.make("environment:local");
 const found = (id: string) => ({
@@ -39,4 +44,12 @@ it("keeps the failure of the current search", () => {
     status: "failed",
     error: "Model unavailable",
   });
+});
+
+it("dismissed results stay gone when the search they replaced answers late", () => {
+  const run = startAiThreadFind("billing sync", environmentId);
+  dismissAiThreadFind();
+
+  expect(settleAiThreadFind(run, { matches: [found("thread:late")] })).toBe(false);
+  expect(useAiThreadFindStore.getState()).toMatchObject({ status: "idle", matches: [] });
 });

@@ -58,3 +58,8 @@ export function settleAiThreadFind(
 export function setAiThreadFindResultsOpen(resultsOpen: boolean): void {
   useAiThreadFindStore.setState({ resultsOpen });
 }
+
+/** Drops the last results; the new run also makes an open toast's Show a no-op. */
+export function dismissAiThreadFind(): void {
+  useAiThreadFindStore.setState((state) => ({ ...INITIAL_STATE, run: state.run + 1 }));
+}
