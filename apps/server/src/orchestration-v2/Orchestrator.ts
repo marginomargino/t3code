@@ -1130,12 +1130,13 @@ function queuedRunCancellationEvents(
   return events;
 }
 
+// The newest finished turn, so a thread can be forked while its next turn runs or after a stop.
 function latestStableRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
 ): OrchestrationV2Run | null {
   return (
     projection.runs
-      .filter((run) => run.status === "completed" && run.checkpointId !== null)
+      .filter((run) => isForkableSourceRunStatus(run.status))
       .toSorted((left, right) => right.ordinal - left.ordinal)[0] ?? null
   );
 }
@@ -5413,7 +5414,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,
         commandType: command.type,
-        cause: `No stable source run was found for fork source ${command.sourcePoint.type}.`,
+        cause:
+          command.sourcePoint.type === "latest_stable"
+            ? "This thread has no finished turn to fork yet. Try again once its first turn ends."
+            : `No source run was found for fork source ${command.sourcePoint.type}.`,
       });
     }
     if (sourceRun !== null && !isForkableSourceRunStatus(sourceRun.status)) {
