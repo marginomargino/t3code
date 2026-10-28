@@ -8,6 +8,7 @@ it("reissues imported context until a V2 run completes", () => {
       historyOrigin: "v1_import",
       hasCompletedRun: false,
       legacyImportItemCount: 2,
+      continuesNativeThread: false,
     }),
   );
   assert.isFalse(
@@ -23,6 +24,7 @@ it("reissues imported context until a V2 run completes", () => {
       historyOrigin: "v1_import",
       hasCompletedRun: true,
       legacyImportItemCount: 2,
+      continuesNativeThread: false,
     }),
   );
   assert.isFalse(
@@ -30,6 +32,7 @@ it("reissues imported context until a V2 run completes", () => {
       historyOrigin: undefined,
       hasCompletedRun: false,
       legacyImportItemCount: 2,
+      continuesNativeThread: false,
     }),
   );
   assert.isFalse(
@@ -37,6 +40,16 @@ it("reissues imported context until a V2 run completes", () => {
       historyOrigin: "v1_import",
       hasCompletedRun: false,
       legacyImportItemCount: 0,
+      continuesNativeThread: false,
+    }),
+  );
+  // An imported agent session already holds this history natively.
+  assert.isFalse(
+    shouldPrepareLegacyImportHandoff({
+      historyOrigin: "v1_import",
+      hasCompletedRun: false,
+      legacyImportItemCount: 2,
+      continuesNativeThread: true,
     }),
   );
 });
