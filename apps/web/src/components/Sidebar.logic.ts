@@ -24,7 +24,11 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@t3tools/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import type {
+  SidebarForkDisplay,
+  SidebarProjectSortOrder,
+  SidebarThreadSortOrder,
+} from "@t3tools/contracts/settings";
 import type { AsyncResult } from "effect/reactivity";
 import {
   effectiveSnoozed,
@@ -218,7 +222,12 @@ export function sidebarMarkerId(marker: SidebarListMarker): string {
 }
 
 export type SidebarListItem =
-  | { readonly kind: "thread"; readonly key: string; readonly section: SidebarSection }
+  | {
+      readonly kind: "thread";
+      readonly key: string;
+      readonly section: SidebarSection;
+      readonly depth?: number;
+    }
   | { readonly kind: "marker"; readonly marker: SidebarListMarker };
 
 export function sidebarListItemId(item: SidebarListItem): string {
@@ -603,6 +612,55 @@ export function resolveSidebarRowThreadId(
     thread = findThread(thread.lineage.parentThreadId);
   }
   return thread?.id ?? threadId;
+}
+
+/**
+ * Nested mode places each fork right after its parent, recursively. A fork
+ * whose parent sits in another list keeps its place; a cycle breaks at its
+ * earliest member, so every thread is emitted exactly once.
+ */
+export function nestSidebarSectionForks<
+  T extends Pick<SidebarThreadSummary, "id" | "environmentId" | "lineage">,
+>(
+  threads: readonly T[],
+  mode: SidebarForkDisplay,
+): Array<{ readonly thread: T; readonly depth: number }> {
+  if (mode === "flat") return threads.map((thread) => ({ thread, depth: 0 }));
+  const keyOf = (environmentId: EnvironmentId, id: ThreadId) => `${environmentId}\0${id}`;
+  const indexByKey = new Map(
+    threads.map((thread, index) => [keyOf(thread.environmentId, thread.id), index]),
+  );
+  const parentIndex = threads.map((thread) =>
+    thread.lineage.relationshipToParent === "fork" && thread.lineage.parentThreadId !== null
+      ? (indexByKey.get(keyOf(thread.environmentId, thread.lineage.parentThreadId)) ?? null)
+      : null,
+  );
+  const isRoot = parentIndex.map((parent) => parent === null);
+  for (let start = 0; start < threads.length; start += 1) {
+    const path: number[] = [];
+    let current: number | null = start;
+    while (current !== null && !isRoot[current] && !path.includes(current)) {
+      path.push(current);
+      current = parentIndex[current] ?? null;
+    }
+    if (current !== null && !isRoot[current]) {
+      const cycle = path.slice(path.indexOf(current));
+      isRoot[Math.min(...cycle)] = true;
+    }
+  }
+  const children = threads.map((): number[] => []);
+  parentIndex.forEach((parent, index) => {
+    if (parent !== null && !isRoot[index]) children[parent]!.push(index);
+  });
+  const ordered: Array<{ readonly thread: T; readonly depth: number }> = [];
+  const emit = (index: number, depth: number) => {
+    ordered.push({ thread: threads[index]!, depth });
+    for (const child of children[index]!) emit(child, depth + 1);
+  };
+  isRoot.forEach((root, index) => {
+    if (root) emit(index, 0);
+  });
+  return ordered;
 }
 
 /**

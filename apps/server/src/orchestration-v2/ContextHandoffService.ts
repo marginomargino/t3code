@@ -63,8 +63,8 @@ export interface ContextHandoffServiceV2Shape {
     readonly toProviderThreadId: ProviderThreadId;
     readonly fromProviderInstanceId: ProviderInstanceId;
     readonly toProviderInstanceId: ProviderInstanceId;
+    readonly sourceThreadTitle: string;
     readonly coveredRunOrdinals: OrchestrationV2ContextHandoff["coveredRunOrdinals"];
-    readonly deltaItems: ReadonlyArray<OrchestrationV2TurnItem>;
     readonly createdAt: DateTime.Utc;
   }) => Effect.Effect<OrchestrationV2ContextHandoff, ContextHandoffServiceV2Error>;
   readonly prepareProviderHandoff: (input: {
@@ -225,24 +225,18 @@ function summarizeDeltaItem(item: OrchestrationV2TurnItem): string | null {
   }
 }
 
-function makeForkDeltaSummary(input: {
+function makeForkMergePointer(input: {
   readonly sourceThreadId: ThreadId;
-  readonly targetThreadId: ThreadId;
-  readonly coveredRunOrdinals: OrchestrationV2ContextHandoff["coveredRunOrdinals"];
-  readonly deltaItems: ReadonlyArray<OrchestrationV2TurnItem>;
+  readonly sourceThreadTitle: string;
 }): string {
-  const itemLines = input.deltaItems.flatMap((item) => {
-    const line = summarizeDeltaItem(item);
-    return line === null ? [] : [line];
-  });
+  // Delivery replaces oversized coverage with a generic note, which would drop the fork id.
+  const title =
+    input.sourceThreadTitle.length > 120
+      ? `${input.sourceThreadTitle.slice(0, 117)}...`
+      : input.sourceThreadTitle;
   return [
-    "Merge-back context from forked conversation.",
-    `Source thread: ${input.sourceThreadId}`,
-    `Target thread: ${input.targetThreadId}`,
-    `Covered fork runs: ${input.coveredRunOrdinals.from}-${input.coveredRunOrdinals.to}`,
-    "",
-    "Fork delta:",
-    ...(itemLines.length === 0 ? ["- No user-visible delta items."] : itemLines),
+    `Fork "${title}" (thread ${input.sourceThreadId}) was merged back into this thread.`,
+    "Its messages are not included here. When relevant, read the fork with the t3_thread_read tool or ask it with the t3_thread_send tool using that thread id.",
   ].join("\n");
 }
 
@@ -425,8 +419,8 @@ const makeContextHandoffService = Effect.fn("orchestrationV2.ContextHandoffServi
         readonly toProviderThreadId: ProviderThreadId;
         readonly fromProviderInstanceId: ProviderInstanceId;
         readonly toProviderInstanceId: ProviderInstanceId;
+        readonly sourceThreadTitle: string;
         readonly coveredRunOrdinals: OrchestrationV2ContextHandoff["coveredRunOrdinals"];
-        readonly deltaItems: ReadonlyArray<OrchestrationV2TurnItem>;
         readonly createdAt: DateTime.Utc;
       }) {
         const handoffId = yield* idAllocator.allocate
@@ -447,19 +441,7 @@ const makeContextHandoffService = Effect.fn("orchestrationV2.ContextHandoffServi
                 }),
             ),
           );
-        const coverage = handoffCoverage({
-          threadId: input.sourceThreadId,
-          coveredRunOrdinals: input.coveredRunOrdinals,
-          items: input.deltaItems,
-        });
-        const selected = selectHistory({
-          messages: input.deltaItems.flatMap((item) => {
-            const message = historicalMessage(item);
-            return message === null ? [] : [message];
-          }),
-          coverage,
-          budget: tokenCap,
-        });
+        const pointer = makeForkMergePointer(input);
         return {
           id: handoffId,
           transferId: input.transferId,
@@ -471,13 +453,8 @@ const makeContextHandoffService = Effect.fn("orchestrationV2.ContextHandoffServi
           strategy: "fork_delta_summary",
           status: "ready",
           summaryMessageId: null,
-          summaryText: makeForkDeltaSummary(input),
-          history: {
-            messages: selected.messages,
-            coverage,
-            omittedItems: selected.omittedItems,
-            omittedItemIds: selected.omittedItemIds,
-          },
+          summaryText: pointer,
+          history: { messages: [], coverage: pointer, omittedItems: 0 },
           createdByProviderInstanceId: null,
           createdAt: input.createdAt,
           updatedAt: input.createdAt,
