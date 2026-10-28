@@ -61,6 +61,7 @@ import {
 } from "@t3tools/contracts";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { useLocation, useNavigate } from "@tanstack/react-router";
+import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
 import {
   ArrowLeftIcon,
   BugIcon,
@@ -72,6 +73,7 @@ import {
   FolderGit2Icon,
   FolderIcon,
   FolderPlusIcon,
+  GitForkIcon,
   MessageSquareDashedIcon,
   LinkIcon,
   MessageSquareIcon,
@@ -120,6 +122,8 @@ import {
 } from "./promptLinks/copyPromptLink";
 import { useClientSettings } from "../hooks/useSettings";
 import { useStableCallback } from "../hooks/useStableCallback";
+import { useForkThread } from "../hooks/useForkThread";
+import { threadCanFork, threadHasRun } from "./threadActionMenu.logic";
 import { readLocalApi } from "../localApi";
 import { configuredHostedAppUrl } from "../hostedPairing";
 import { desktopLocalBackendId } from "../connection/desktopLocal";
@@ -530,6 +534,11 @@ function OpenCommandPaletteDialog(props: {
   const activeThreadServerConfig = useServerConfigs().get(
     activeThread?.environmentId ?? ("" as EnvironmentId),
   );
+  const canOperateActiveThread = useEnvironmentScope(
+    activeThread?.environmentId ?? null,
+    AuthOrchestrationOperateScope,
+  );
+  const forkThread = useForkThread();
   const canShareActiveThreadWithGuest = useAtomValue(
     canShareWithGuestAtom(activeThread?.environmentId ?? ("" as EnvironmentId)),
   );
@@ -1587,6 +1596,27 @@ function OpenCommandPaletteDialog(props: {
 
   if (activeThread !== null) {
     const thread = activeThread;
+    actionItems.push({
+      kind: "action",
+      value: "action:fork-thread",
+      searchTerms: ["fork", "branch", "copy", "duplicate", "thread"],
+      title: "Fork thread",
+      disabled:
+        !canOperateActiveThread ||
+        !threadCanFork({
+          hasRun: threadHasRun(thread),
+          isRunning: !threadRuntimeCanArchive(thread.runtime),
+        }),
+      icon: <GitForkIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        const error = await forkThread({
+          environmentId: thread.environmentId,
+          sourceThreadId: thread.id,
+          sourceTitle: thread.title,
+        });
+        if (error !== null) throw new Error(error);
+      },
+    });
     actionItems.push({
       kind: "action",
       value: "action:restart-agent-session",

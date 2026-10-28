@@ -24,6 +24,7 @@ import {
   canMarkLatestRunUnread,
   isThreadTriageAction,
   threadActionRequiresOperate,
+  threadHasRun,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
 import { titleRegenerationToast } from "../components/threadTitleRegenerationToast";
@@ -51,6 +52,7 @@ import {
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
 import { useCopyToClipboard } from "./useCopyToClipboard";
+import { useForkThread } from "./useForkThread";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
 import { canTurnThreadIntoProject, useThreadActions } from "./useThreadActions";
@@ -100,6 +102,7 @@ export function useThreadActionMenu(input: {
     reportFailure: false,
   });
   const handleNewThread = useNewThreadHandler();
+  const forkThread = useForkThread();
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
@@ -149,6 +152,7 @@ export function useThreadActionMenu(input: {
       isRegeneratingTitle,
       isRunning: !threadRuntimeCanArchive(thread.runtime),
       hasCompletedRun: canMarkLatestRunUnread(thread.latestRun),
+      hasRun: threadHasRun(thread),
       supports,
       snoozePresets,
       canShareWithGuest,
@@ -257,6 +261,15 @@ export function useThreadActionMenu(input: {
         case "rename":
           onStartRename?.();
           return;
+        case "fork": {
+          const error = await forkThread({
+            environmentId: threadRef.environmentId,
+            sourceThreadId: thread.id,
+            sourceTitle: thread.title,
+          });
+          if (error !== null) failureToast("Failed to fork thread", new Error(error));
+          return;
+        }
         case "regenerate-title": {
           if (isRegeneratingTitle) return;
           const toast = titleRegenerationToast([

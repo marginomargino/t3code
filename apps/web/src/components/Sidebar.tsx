@@ -137,7 +137,7 @@ import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerSettleAndAdvance } from "../settleAndAdvance";
 import { resolveThreadActionProjectRef, startNewThreadFromContext } from "../lib/chatThreadActions";
-import { useClientSettings } from "../hooks/useSettings";
+import { persistClientSettingsPatch, useClientSettings } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
@@ -181,12 +181,14 @@ import {
   canMarkLatestRunUnread,
   isThreadTriageAction,
   threadActionRequiresOperate,
+  threadHasRun,
 } from "./threadActionMenu.logic";
 import {
   applySidebarThreadDrop,
   filterSidebarV2VisibleThreads,
   groupSidebarThreadsByProject,
   sidebarFolderExpansionKeys,
+  nestSidebarSectionForks,
   buildBulkTitleRegenerationContextMenuItem,
   buildBulkUnpinContextMenuItem,
   deleteSelectedThreadEntries,
@@ -237,6 +239,7 @@ import {
 import { ProjectFavicon } from "./ProjectFavicon";
 import { deriveProviderEntriesByEnvironment } from "../providerInstances";
 import { useStableCallback } from "../hooks/useStableCallback";
+import { useForkThread } from "../hooks/useForkThread";
 import {
   resolveSidebarRouteReveal,
   type SidebarRouteReveal,
@@ -462,6 +465,7 @@ function useSidebarThreads(input: {
   // Folders already separate the work, so boring mode has no Working shelf.
   const workingShelfEnabled =
     useClientSettings((s) => s.sidebarWorkingShelfEnabled) && folderGroups === null;
+  const forkDisplay = useClientSettings((s) => s.sidebarForkDisplay);
   const inboxReturnsVersion = useSyncExternalStore(
     inboxReturns.subscribe,
     inboxReturns.getSnapshot,
@@ -563,15 +567,14 @@ function useSidebarThreads(input: {
               : EMPTY_THREADS,
           };
         });
+  // Range selection, sweeps and jump hints must follow the rendered (possibly nested) order.
   const orderedThreads = [
-    ...pinnedThreads,
-    ...(projectFolders === null
-      ? activeThreads
-      : projectFolders.flatMap((folder) => folder.threads)),
-    ...visibleWorkingThreads,
-    ...visibleSnoozedThreads,
-    ...renderedSettledThreads,
-  ];
+    pinnedThreads,
+    ...(projectFolders === null ? [activeThreads] : projectFolders.map((folder) => folder.threads)),
+    visibleWorkingThreads,
+    visibleSnoozedThreads,
+    renderedSettledThreads,
+  ].flatMap((list) => nestSidebarSectionForks(list, forkDisplay).map(({ thread }) => thread));
   const sectionByThreadKey = new Map<string, SidebarSection>();
   for (const [list, section] of [
     [pinnedThreads, "pinned"],
@@ -1014,6 +1017,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const newThreadContext = useHandleNewThread();
   // Row callbacks capture only the handler; the rest of the context changes with the route.
   const { handleNewThread } = newThreadContext;
+  const forkThread = useForkThread();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const clearSelection = useThreadSelectionStore((s) => s.clearSelection);
   const toggleThreadSelection = useThreadSelectionStore((s) => s.toggleThread);
@@ -1388,6 +1392,22 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     keepEmptyFolders: (group) =>
       scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
   });
+  const forkDisplay = useClientSettings((s) => s.sidebarForkDisplay);
+  const hasForkRows = [...threadByKey.values()].some(
+    (thread) => thread.lineage.relationshipToParent === "fork",
+  );
+  let shellTitleByKey: Map<string, string> | null = null;
+  // Older settled parents are not streamed, so a fork can outlive its parent's shell here.
+  const resolveForkParentLabel = (thread: EnvironmentThreadShell): string | null => {
+    const parentId =
+      thread.lineage.relationshipToParent === "fork" ? thread.lineage.parentThreadId : null;
+    if (parentId === null) return null;
+    shellTitleByKey ??= new Map(threads.map((shell) => [threadShellKey(shell), shell.title]));
+    return (
+      shellTitleByKey.get(threadShellKey({ environmentId: thread.environmentId, id: parentId })) ??
+      "parent thread"
+    );
+  };
 
   // Ranked across environments as the palette ranks them, so one
   // environment's list does not sit above another's better matches; rows
@@ -1998,9 +2018,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       list: readonly EnvironmentThreadShell[],
       section: SidebarSection,
     ): SidebarListItem[] =>
-      list.map((thread) => {
+      nestSidebarSectionForks(list, forkDisplay).map(({ thread, depth }) => {
         const key = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
-        return { kind: "thread", key, section };
+        return { kind: "thread", key, section, depth };
       });
     // Boring mode keeps a pinned open project or one the user filtered to, so it can start a thread.
     if (
@@ -2037,7 +2057,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   })();
   // Preserve the list while streamed updates leave order unchanged to retain row memoization.
   const sidebarListItemsKey = sidebarListItemsFresh
-    .map((item) => (item.kind === "thread" ? item.section + ":" + item.key : item.marker))
+    .map((item) =>
+      item.kind === "thread" ? `${item.section}:${item.depth ?? 0}:${item.key}` : item.marker,
+    )
     .join("\n");
   const [sidebarListItemsState, setSidebarListItems] = useState(sidebarListItemsFresh);
   const [sidebarListItemsKeyState, setSidebarListItemsKeyState] = useState(sidebarListItemsKey);
@@ -2755,6 +2777,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               hasCompletedRun: canMarkLatestRunUnread(thread.latestRun),
+              hasRun: threadHasRun(thread),
               canShareWithGuest: appAtomRegistry.get(
                 canShareWithGuestAtom(threadRef.environmentId),
               ),
@@ -2886,6 +2909,23 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           case "rename":
             startThreadRename(threadRef, thread.title);
             return;
+          case "fork": {
+            const error = await forkThread({
+              environmentId: threadRef.environmentId,
+              sourceThreadId: thread.id,
+              sourceTitle: thread.title,
+            });
+            if (error !== null) {
+              toastManager.add(
+                stackedThreadToast({
+                  type: "error",
+                  title: "Failed to fork thread",
+                  description: error,
+                }),
+              );
+            }
+            return;
+          }
           case "share-guest":
             openGuestShareDialog(threadRef);
             return;
@@ -3106,6 +3146,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           <SidebarGroup className="z-[1]">
             <SidebarThreadHeader
               hasProjects={projectGroups.length > 0}
+              forkDisplayToggle={
+                hasForkRows
+                  ? {
+                      nested: forkDisplay === "nested",
+                      onToggle: () =>
+                        void persistClientSettingsPatch({
+                          sidebarForkDisplay: forkDisplay === "nested" ? "flat" : "nested",
+                        }),
+                    }
+                  : null
+              }
               projectScope={
                 <Combobox
                   items={projectScopeItems}
@@ -3515,6 +3566,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     const renderThreadRow = (
                       thread: EnvironmentThreadShell,
                       section: SidebarSection,
+                      depth: number,
                       // The tree row of the project folder this row sits in.
                       folderRow?: string,
                     ) => {
@@ -3541,6 +3593,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             optimisticDrop !== null
                           }
                           thread={thread}
+                          depth={depth}
+                          forkParentLabel={resolveForkParentLabel(thread)}
                           variant={rowVariant}
                           navigationParent={
                             folderRow ??
@@ -3639,7 +3693,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                       if (item.kind === "thread") {
                         // Folders draw active rows in their own place below.
                         if (projectFolders !== null && item.section === "active") continue;
-                        items.push(renderThreadRow(threadByKey.get(item.key)!, item.section));
+                        items.push(
+                          renderThreadRow(
+                            threadByKey.get(item.key)!,
+                            item.section,
+                            item.depth ?? 0,
+                          ),
+                        );
                         continue;
                       }
                       if (projectFolders !== null && item.marker === "active-placeholder") {
@@ -3655,11 +3715,15 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               onContextMenu={handleProjectFolderContextMenu}
                             />,
                           );
-                          for (const thread of folder.threads) {
+                          for (const { thread, depth } of nestSidebarSectionForks(
+                            folder.threads,
+                            forkDisplay,
+                          )) {
                             items.push(
                               renderThreadRow(
                                 thread,
                                 "active",
+                                depth,
                                 sidebarFolderRowId(folder.group.projectKey),
                               ),
                             );

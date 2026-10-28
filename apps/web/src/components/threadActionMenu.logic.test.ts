@@ -14,6 +14,7 @@ const baseState: ThreadActionMenuState = {
   isRegeneratingTitle: false,
   isRunning: false,
   hasCompletedRun: true,
+  hasRun: true,
   supports: {
     settlement: true,
     autoSettleOptOut: true,
@@ -43,6 +44,7 @@ describe("buildThreadActionMenuItems", () => {
             "unsettle",
             "unsnooze",
             "rename",
+            "fork",
             "regenerate-title",
             "auto-settle",
             "archive",
@@ -53,6 +55,7 @@ describe("buildThreadActionMenuItems", () => {
             "settle",
             "snooze",
             "rename",
+            "fork",
             "regenerate-title",
             "auto-settle",
             "archive",
@@ -88,4 +91,20 @@ describe("buildThreadActionMenuItems", () => {
     const items = buildThreadActionMenuItems({ ...baseState, canRename: false });
     expect(items.filter((item) => item.disabled).map((item) => item.id)).toEqual(["rename"]);
   });
+  it.each([
+    { hasRun: true, isRunning: false, disabled: false },
+    { hasRun: false, isRunning: false, disabled: true },
+    { hasRun: true, isRunning: true, disabled: true },
+    { hasRun: false, isRunning: true, disabled: true },
+  ])(
+    "fork is disabled=$disabled when has run=$hasRun and running=$isRunning",
+    ({ hasRun, isRunning, disabled }) => {
+      const forkItem = buildThreadActionMenuItems({
+        ...baseState,
+        hasRun,
+        isRunning,
+      }).find((item) => item.id === "fork");
+      expect(forkItem?.disabled).toBe(disabled);
+    },
+  );
 });
