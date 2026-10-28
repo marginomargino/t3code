@@ -7644,9 +7644,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         hasCompletedRun: latestCompletedRun !== undefined,
         legacyImportItemCount: legacyImportItems.length,
         // A failed resume still recovers these items through the fallback summary.
-        continuesNativeThread:
-          activeProviderThread?.nativeThreadRef != null &&
-          (!isProviderSwitch || canResumeAcrossInstances),
+        continuesNativeThread: activeProviderThread?.nativeThreadRef != null,
       })
         ? yield* contextHandoffService
             .prepareLegacyImport({

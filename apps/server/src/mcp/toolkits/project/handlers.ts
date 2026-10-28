@@ -423,7 +423,7 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
     // An existing destination is never adopted.
     { linkedCallers: "allowed" },
   ),
-  t3_claude_session_search: McpToolAccess.reads(({ environmentId: _, ...input }) =>
+  t3_claude_session_search: McpToolAccess.writesEnvironment(({ environmentId: _, ...input }) =>
     Effect.gen(function* () {
       const importer = yield* AgentSessionImporter.AgentSessionImporter;
       return yield* importer.searchClaudeSessions(input).pipe(Effect.mapError(unavailable));

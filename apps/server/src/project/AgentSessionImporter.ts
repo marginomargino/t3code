@@ -26,6 +26,7 @@ import {
   type ClaudeSessionSearchInput,
   type ClaudeSessionSearchResult,
   type OrchestrationV2AppThread,
+  type Project,
   type OrchestrationV2ConversationMessage,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ProviderThread,
@@ -617,13 +618,14 @@ const make = Effect.gen(function* () {
 
 
   const projectForCwd = (cwd: string) =>
-    projects
-      .getByWorkspaceRoot(cwd)
-      .pipe(
-        Effect.mapError(
-          (cause) => new AgentSessionScanError({ operation: "read-projects", cause }),
-        ),
-      );
+    projects.getByWorkspaceRoot(cwd).pipe(
+      Effect.catch((cause) =>
+        // Old sessions often ran in folders that no longer exist.
+        cause.operation === "normalize-workspace"
+          ? Effect.succeed(Option.none<Project>())
+          : Effect.fail(new AgentSessionScanError({ operation: "read-projects", cause })),
+      ),
+    );
 
   const searchClaudeSessions = Effect.fn("AgentSessionImporter.searchClaudeSessions")(function* (
     input: ClaudeSessionSearchInput,
@@ -647,7 +649,7 @@ const make = Effect.gen(function* () {
     input: ClaudeSessionImportInput,
   ) {
     const [match] = yield* scanner.findClaudeSessions(input.sessionId);
-    if (match === undefined || match.sessionId !== input.sessionId) {
+    if (match === undefined || match.sessionId.toLowerCase() !== input.sessionId.toLowerCase()) {
       return yield* new ClaudeSessionNotFoundError({ sessionId: input.sessionId });
     }
     const project = yield* projectForCwd(match.cwd);
@@ -674,7 +676,11 @@ const make = Effect.gen(function* () {
       thread: read.thread,
       source: read.source,
     }).pipe(
-      Effect.mapError((cause) => new AgentSessionScanError({ operation: "import-session", cause })),
+      Effect.mapError((cause) =>
+        cause._tag === "AgentSessionUnresumableSessionError"
+          ? new ClaudeSessionNotFoundError({ sessionId: input.sessionId })
+          : new AgentSessionScanError({ operation: "import-session", cause }),
+      ),
     );
     if (imported === null) {
       return yield* new ClaudeSessionInUseError({ sessionId: input.sessionId });
