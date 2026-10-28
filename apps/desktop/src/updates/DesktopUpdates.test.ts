@@ -102,6 +102,32 @@ describe("DesktopUpdates", () => {
     }),
   );
 
+  it.effect("enables an updater that provides its own feed, whatever the channel", () =>
+    Effect.gen(function* () {
+      const statuses = (providesOwnFeed: boolean, mockUpdates: boolean) => {
+        const harness = makeHarness({
+          providesOwnFeed,
+          env: { T3CODE_DESKTOP_MOCK_UPDATES: String(mockUpdates) },
+        });
+        return Effect.scoped(
+          Effect.gen(function* () {
+            const updates = yield* DesktopUpdates.DesktopUpdates;
+            yield* updates.configure;
+            const configured = (yield* updates.getState).status;
+            yield* updates.setChannel("nightly");
+            harness.emit("update-available", { version: "1.2.4-local.gabc" });
+            yield* flushCallbacks;
+            return [configured, (yield* updates.getState).status];
+          }),
+        ).pipe(Effect.provide(harness.layer));
+      };
+
+      assert.deepEqual(yield* statuses(true, false), ["idle", "available"]);
+      assert.equal((yield* statuses(false, false))[0], "disabled");
+      assert.notEqual((yield* statuses(false, true))[1], "available");
+    }),
+  );
+
   it.effect("keeps the disabled reason available after configuration and channel changes", () => {
     const harness = makeHarness({ env: { T3CODE_DISABLE_AUTO_UPDATE: "true" } });
     const reason = "Automatic updates are disabled by the T3CODE_DISABLE_AUTO_UPDATE setting.";

@@ -33,6 +33,7 @@ import * as ElectronSafeStorage from "./electron/ElectronSafeStorage.ts";
 import * as ElectronShell from "./electron/ElectronShell.ts";
 import * as ElectronTheme from "./electron/ElectronTheme.ts";
 import * as ElectronUpdater from "./electron/ElectronUpdater.ts";
+import * as LocalRebuildUpdater from "./electron/LocalRebuildUpdater.ts";
 import * as ElectronWindow from "./electron/ElectronWindow.ts";
 import * as DesktopApp from "./app/DesktopApp.ts";
 import * as DesktopAppActivation from "./app/DesktopAppActivation.ts";
@@ -221,6 +222,7 @@ const layerDesktopApplication = Layer.mergeAll(
       Layer.provide(DesktopUpdatePolicy.layer),
       // The same layer as the foundation's, so the policy is still read once.
       Layer.provide(DesktopManagedPolicy.layer),
+      Layer.provide(LocalRebuildUpdater.layer),
     ),
   ),
   // Updates closes the same tunnels the SSH IPC opens before quitAndInstall.
