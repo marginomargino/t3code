@@ -1,4 +1,5 @@
 import {
+  AgentClientSettingsPatch,
   OrchestratorMcpFailure,
   type ProjectId,
   SecretRef,
@@ -11,6 +12,7 @@ import {
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as ClientSettingsRegistry from "../../../clientSettings/ClientSettingsRegistry.ts";
 import * as Environment from "../../../environment/ServerEnvironment.ts";
 import * as Keybindings from "../../../keybindings.ts";
 import * as ThreadCommandExecutor from "../../../orchestration-v2/ThreadCommandExecutor.ts";
@@ -207,6 +209,28 @@ export const layer = McpToolAccess.toLayer(EnvironmentToolkit, {
               ),
             ),
           );
+        }),
+      ),
+  ),
+  t3_client_settings_read: McpToolAccess.reads(() =>
+    Effect.gen(function* () {
+      yield* access;
+      const registry = yield* ClientSettingsRegistry.ClientSettingsRegistry;
+      return { clients: yield* registry.list };
+    }),
+  ),
+  t3_client_settings_update: McpToolAccess.writesEnvironment(
+    ({ clientId, patch: rawPatch }, check) =>
+      withCallerLock(
+        Effect.gen(function* () {
+          // The turn may have ended, or the thread's modes changed, while this waited for the lock.
+          yield* check;
+          yield* access;
+          const patch = yield* decodeOrInvalid(AgentClientSettingsPatch, rawPatch);
+          const registry = yield* ClientSettingsRegistry.ClientSettingsRegistry;
+          return yield* registry
+            .update(clientId, patch)
+            .pipe(Effect.mapError((error) => rejected(error)));
         }),
       ),
   ),
