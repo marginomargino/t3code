@@ -1902,6 +1902,12 @@ export const OrchestrationV2TurnItem = Schema.Union([
   }),
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
+    type: Schema.Literal("merge_back"),
+    sourceThreadId: ThreadId,
+    sourceThreadTitle: Schema.String,
+  }),
+  Schema.Struct({
+    ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("thread_created"),
     targetThreadId: ThreadId,
     targetRunId: Schema.NullOr(RunId),
@@ -2783,6 +2789,12 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
     ]),
     targetThreadId: ThreadId,
     providerThreadId: Schema.optional(ProviderThreadId),
+  }),
+  Schema.Struct({
+    ...OrchestrationV2TurnItemJsonBaseFields,
+    type: Schema.Literal("merge_back"),
+    sourceThreadId: ThreadId,
+    sourceThreadTitle: Schema.String,
   }),
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,

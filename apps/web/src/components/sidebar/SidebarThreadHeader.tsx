@@ -1,5 +1,12 @@
 import { useGT } from "gt-react";
-import { FolderPlusIcon, SearchIcon, SquarePenIcon, XIcon } from "lucide-react";
+import {
+  FolderPlusIcon,
+  ListIcon,
+  ListTreeIcon,
+  SearchIcon,
+  SquarePenIcon,
+  XIcon,
+} from "lucide-react";
 import {
   type ComponentProps,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -16,6 +23,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 export interface SidebarThreadHeaderProps {
   hasProjects: boolean;
   projectScope: ReactNode;
+  /** Present only while a visible thread is a fork. */
+  forkDisplayToggle: { nested: boolean; onToggle: () => void } | null;
   onNewProject: () => void;
   onNewThread: (event: ReactMouseEvent) => void;
   newThreadDisabled: boolean;
@@ -35,6 +44,7 @@ export interface SidebarThreadHeaderProps {
 export function SidebarThreadHeader({
   hasProjects,
   projectScope,
+  forkDisplayToggle,
   onNewProject,
   onNewThread,
   newThreadDisabled,
@@ -99,6 +109,15 @@ export function SidebarThreadHeader({
         ) : null}
       </div>
       <div className="flex shrink-0 items-center">
+        {forkDisplayToggle ? (
+          <SidebarHeaderIconButton
+            label={forkDisplayToggle.nested ? "Show forks separately" : "Show forks under parent"}
+            aria-pressed={forkDisplayToggle.nested}
+            onClick={forkDisplayToggle.onToggle}
+          >
+            {forkDisplayToggle.nested ? <ListTreeIcon /> : <ListIcon />}
+          </SidebarHeaderIconButton>
+        ) : null}
         {hasProjects ? (
           <>
             {projectScope}

@@ -13,6 +13,7 @@ const baseState: ThreadActionMenuState = {
   canSnoozeNow: true,
   isRegeneratingTitle: false,
   isRunning: false,
+  hasRun: true,
   supports: {
     settlement: true,
     autoSettleOptOut: true,
@@ -42,6 +43,7 @@ describe("buildThreadActionMenuItems", () => {
             "unsettle",
             "unsnooze",
             "rename",
+            "fork",
             "regenerate-title",
             "auto-settle",
             "archive",
@@ -52,6 +54,7 @@ describe("buildThreadActionMenuItems", () => {
             "settle",
             "snooze",
             "rename",
+            "fork",
             "regenerate-title",
             "auto-settle",
             "archive",
@@ -74,4 +77,21 @@ describe("buildThreadActionMenuItems", () => {
     expect(items.find((item) => item.id === "archive")?.disabled).toBe(true);
     expect(items.find((item) => item.id === "turn-into-project")?.disabled).toBe(true);
   });
+
+  it.each([
+    { hasRun: true, isRunning: false, disabled: false },
+    { hasRun: false, isRunning: false, disabled: true },
+    { hasRun: true, isRunning: true, disabled: true },
+    { hasRun: false, isRunning: true, disabled: true },
+  ])(
+    "fork is disabled=$disabled when has run=$hasRun and running=$isRunning",
+    ({ hasRun, isRunning, disabled }) => {
+      const forkItem = buildThreadActionMenuItems({
+        ...baseState,
+        hasRun,
+        isRunning,
+      }).find((item) => item.id === "fork");
+      expect(forkItem?.disabled).toBe(disabled);
+    },
+  );
 });
