@@ -965,9 +965,13 @@ export function shouldPrepareLegacyImportHandoff(input: {
   readonly hasCompletedRun: boolean;
   readonly historyOrigin: OrchestrationV2AppThread["historyOrigin"];
   readonly legacyImportItemCount: number;
+  readonly continuesNativeThread: boolean;
 }): boolean {
   return (
-    input.historyOrigin === "v1_import" && !input.hasCompletedRun && input.legacyImportItemCount > 0
+    input.historyOrigin === "v1_import" &&
+    !input.hasCompletedRun &&
+    input.legacyImportItemCount > 0 &&
+    !input.continuesNativeThread
   );
 }
 
@@ -6348,6 +6352,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         historyOrigin: projection.thread.historyOrigin,
         hasCompletedRun: latestCompletedRun !== undefined,
         legacyImportItemCount: legacyImportItems.length,
+        // A failed resume still recovers these items through the fallback summary.
+        continuesNativeThread:
+          activeProviderThread?.nativeThreadRef != null &&
+          (!isProviderSwitch || canResumeAcrossInstances),
       })
         ? yield* contextHandoffService
             .prepareLegacyImport({

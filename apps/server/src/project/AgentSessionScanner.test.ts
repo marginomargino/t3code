@@ -1889,6 +1889,74 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         expect(threads.map((thread) => thread.providerInstanceId)).toEqual(["codex-work"]);
       }),
     );
+
+    it.effect("finds one Claude session by ID or current title regardless of age", () =>
+      Effect.gen(function* () {
+        const path = yield* Path.Path;
+        const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
+        yield* TestClock.setTime(nowMs);
+        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
+        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
+        const workspace = yield* makeTempDir("t3code-workspace-");
+        const worktree = yield* makeTempDir("t3code-worktree-");
+        const sessionId = "dfb9f254-0516-4f09-be9e-b60983f22355";
+        const transcript = (cwd: string) =>
+          [
+            encodeTranscriptRecord({
+              type: "user",
+              cwd,
+              sessionId,
+              timestamp: "2026-05-01T00:00:00.000Z",
+              message: { role: "user", content: "Fix the billing sync" },
+            }),
+            ...Array.from({ length: 400 }, () =>
+              encodeTranscriptRecord({
+                type: "assistant",
+                sessionId,
+                message: { role: "assistant", content: [{ type: "text", text: "x".repeat(1024) }] },
+              }),
+            ),
+            encodeTranscriptRecord({
+              type: "custom-title",
+              customTitle: "Investigation",
+              sessionId,
+            }),
+            encodeTranscriptRecord({
+              type: "custom-title",
+              customTitle: "Billing deep dive",
+              sessionId,
+            }),
+            "",
+          ].join("\n");
+        // Older than the 30-day bulk import window.
+        const updatedMs = nowMs - 60 * 24 * 60 * 60 * 1000;
+        yield* writeTranscript({
+          filePath: path.join(claudeHomePath, "projects", "-workspace", `${sessionId}.jsonl`),
+          contents: transcript(workspace),
+          mtimeMs: updatedMs,
+        });
+        yield* writeTranscript({
+          filePath: path.join(claudeHomePath, "projects", "-worktree", `${sessionId}.jsonl`),
+          contents: transcript(worktree),
+          mtimeMs: updatedMs - 1000,
+        });
+
+        yield* Effect.gen(function* () {
+          const scanner = yield* AgentSessionScanner.AgentSessionScanner;
+          const byTitle = yield* scanner.findClaudeSessions("billing DEEP");
+          expect(byTitle.map(({ sessionId, title, cwd }) => ({ sessionId, title, cwd }))).toEqual([
+            { sessionId, title: "Billing deep dive", cwd: workspace },
+          ]);
+          expect(yield* scanner.findClaudeSessions("Investigation")).toEqual([]);
+          const byId = yield* scanner.findClaudeSessions(sessionId.toUpperCase());
+          expect(byId.map((match) => match.cwd)).toEqual([workspace]);
+
+          const read = yield* scanner.readClaudeSession(byId[0]!);
+          expect(read?.thread.providerSessionId).toBe(sessionId);
+          expect(read?.thread.messages[0]?.text).toBe("Fix the billing sync");
+        }).pipe(Effect.provide(layerScannerTest({ claudeHomePath, codexHomePath })));
+      }),
+    );
   });
 });
 
