@@ -1,7 +1,9 @@
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
+import { XIcon } from "lucide-react";
 
 import {
+  dismissAiThreadFind,
   setAiThreadFindResultsOpen,
   settleAiThreadFind,
   startAiThreadFind,
@@ -91,9 +93,17 @@ export function AiThreadFindStatus(props: { readonly query: string }) {
   }
   if (status === "done" && matchCount > 0) {
     return (
-      <div className="px-2 pb-1">
+      <div className="flex items-center gap-1 px-2 pb-1">
         <Button variant="ghost" size="xs" onClick={() => setAiThreadFindResultsOpen(true)}>
           {matchCount} AI {matchCount === 1 ? "match" : "matches"} · Show
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Dismiss AI matches"
+          onClick={dismissAiThreadFind}
+        >
+          <XIcon />
         </Button>
       </div>
     );
