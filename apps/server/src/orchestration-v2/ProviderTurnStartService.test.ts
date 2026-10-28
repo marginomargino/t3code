@@ -1422,6 +1422,72 @@ effectIt.effect.each([
   }),
 );
 
+effectIt.effect.each([{ fork: true }, { fork: false }])(
+  "tells a fork's first turn about its parent thread: $fork",
+  ({ fork }) =>
+    Effect.gen(function* () {
+      const parentThreadId = ThreadId.make("fork-parent-thread");
+      const harness = makeLocalCommandHarness({
+        text: "Continue",
+        previousTurn: { runStatus: "completed", turnStatus: "completed" },
+      });
+      const projection = harness.projection();
+      const run = projection.runs.at(-1)!;
+      if (fork) {
+        harness.setProjection({
+          ...projection,
+          contextTransfers: [
+            {
+              id: ContextTransferId.make("fork-transfer"),
+              type: "fork",
+              sourceThreadId: parentThreadId,
+              targetThreadId: run.threadId,
+              sourcePoint: { threadId: parentThreadId, runId: RunId.make("fork-parent-run") },
+              basePoint: null,
+              sourceProviderInstanceId: harness.newInstanceId,
+              targetProviderInstanceId: harness.newInstanceId,
+              targetRunId: run.id,
+              status: "resolved_native",
+              resolution: null,
+              createdBy: "user",
+              error: null,
+              createdAt: projection.updatedAt,
+              updatedAt: projection.updatedAt,
+              consumedAt: null,
+            },
+          ],
+        });
+      }
+      harness.getThreadRecords.mockImplementation((threadId) =>
+        Effect.succeed(
+          threadId === parentThreadId
+            ? {
+                ...harness.projection(),
+                thread: {
+                  ...harness.projection().thread,
+                  id: parentThreadId,
+                  title: "Parent work",
+                },
+              }
+            : harness.projection(),
+        ),
+      );
+
+      yield* harness.start;
+
+      const text = harness.startRootRun.mock.calls[0]?.[0].message.text ?? "";
+      expect(text.startsWith("Continue")).toBe(true);
+      if (fork) {
+        expect(text).toContain(`threadId: ${parentThreadId}`);
+        expect(text).toContain("title: Parent work");
+        expect(text).toContain("t3_thread_read");
+        expect(text).toContain("t3_thread_send");
+      } else {
+        expect(text).toBe("Continue");
+      }
+    }),
+);
+
 effectIt.effect("does not start another turn when abandoned-turn cleanup fails", () =>
   Effect.gen(function* () {
     const harness = makeLocalCommandHarness({
