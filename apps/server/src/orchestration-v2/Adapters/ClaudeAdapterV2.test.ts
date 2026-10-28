@@ -2613,6 +2613,93 @@ describe("ClaudeAdapterV2 attachments", () => {
 });
 
 describe("ClaudeAdapterV2 native fork", () => {
+  it.effect("refuses to copy a live turn when the fork boundary has no assistant cursor", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const forkCalls: Array<ClaudeAdapterV2.ClaudeAgentSdkSessionForkInput> = [];
+        const adapter = yield* ClaudeAdapterV2.makeClaudeAdapterV2({
+          instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
+          settings: DEFAULT_CLAUDE_SETTINGS,
+          environment: {},
+          attachmentsDir: yield* fileSystem.makeTempDirectoryScoped({
+            prefix: "t3-claude-v2-fork-live-",
+          }),
+          fileSystem,
+          path: yield* Path.Path,
+          crypto: yield* Crypto.Crypto,
+          idAllocator: yield* IdAllocator.IdAllocatorV2,
+          queryRunner: {
+            allocateSessionId: Effect.succeed("source-native-session"),
+            open: () => Effect.die("no query should open"),
+            forkSession: (input) =>
+              Effect.sync(() => {
+                forkCalls.push(input);
+                return { sessionId: "forked-native-session" };
+              }),
+            subagentLaunchToolUseId: () => Effect.succeed(null),
+            assertComplete: Effect.void,
+          },
+        });
+        const sourceThreadId = ThreadId.make("thread-claude-fork-live-source");
+        const modelSelection = {
+          instanceId: ProviderInstanceId.make(ClaudeAdapterV2.CLAUDE_PROVIDER),
+          model: "claude-sonnet-4-6",
+        };
+        const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          cwd: "/workspace",
+        });
+        const runtime = yield* adapter.openSession({
+          threadId: sourceThreadId,
+          providerSessionId: ProviderSessionId.make("provider-session-claude-fork-live"),
+          modelSelection,
+          runtimePolicy,
+        });
+        const sourceProviderThread = yield* runtime.ensureThread({
+          threadId: sourceThreadId,
+          modelSelection,
+          runtimePolicy,
+        });
+        const now = yield* DateTime.now;
+        const boundaryTurnId = ProviderTurnId.make("provider-turn-claude-live-boundary");
+        const turn = (id: ProviderTurnId, ordinal: number, status: "completed" | "running") => ({
+          id,
+          providerThreadId: sourceProviderThread.id,
+          nodeId: NodeId.make(`node-${id}`),
+          runAttemptId: RunAttemptId.make(`attempt-${id}`),
+          nativeTurnRef: null,
+          ordinal,
+          status,
+          startedAt: now,
+          completedAt: status === "completed" ? now : null,
+        });
+
+        const error = yield* runtime
+          .forkThread({
+            sourceProviderThread,
+            sourceProviderTurns: [
+              turn(boundaryTurnId, 1, "completed"),
+              turn(ProviderTurnId.make("provider-turn-claude-live-next"), 2, "running"),
+            ],
+            providerTurnId: boundaryTurnId,
+            targetThreadId: ThreadId.make("thread-claude-fork-live-target"),
+          })
+          .pipe(Effect.flip);
+
+        assert.instanceOf(error, ProviderAdapter.ProviderAdapterForkThreadError);
+        assert.instanceOf(error.cause, ProviderAdapter.ProviderAdapterForkThreadError);
+        assert.include(String(error.cause.cause), "no SDK assistant message cursor");
+        assert.deepEqual(forkCalls, []);
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        ),
+      ),
+    ),
+  );
+
   it.effect("forks a session from its original directory after the workspace root changes", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;

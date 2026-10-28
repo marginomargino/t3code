@@ -224,8 +224,10 @@ The linked pull request participates in automatic settlement.
 
 On web and desktop, choose **Fork thread** from a thread's right-click menu, the chat
 header menu, or the command palette to continue its latest finished turn in a new thread.
-It is unavailable while the thread is working. To fork from an earlier response, use the
-fork action on that message instead.
+Claude threads can be forked while they are working; the fork starts from the last finished
+turn and the running turn continues undisturbed. Other providers make the action available
+once the thread is idle. To fork from an earlier response, use the fork action on that message
+instead.
 
 A fork shows **↳** and its parent's title under its own; click it to open the parent.
 To nest forks below their parent when both are in the same section, use the tree button in

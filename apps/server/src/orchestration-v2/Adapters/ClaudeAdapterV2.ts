@@ -2544,11 +2544,9 @@ const resolveClaudeForkUpToMessageId = Effect.fn("ClaudeAdapterV2.resolveForkUpT
       return boundaryNativeId;
     }
 
-    const terminalTurnsAfterBoundary = sourceTurns
-      .slice(boundaryIndex + 1)
-      .filter(isTerminalProviderTurn);
-    if (terminalTurnsAfterBoundary.length === 0) {
-      // Rollback pins the head but leaves the rolled-back turns in Claude's transcript.
+    // A turn still streaming after the boundary must not be copied; rollback pins the head but
+    // leaves the rolled-back turns in Claude's transcript.
+    if (boundaryIndex === sourceTurns.length - 1) {
       return yield* getNativeConversationHeadId(input.sourceProviderThread);
     }
 

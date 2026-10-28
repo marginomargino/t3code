@@ -19,6 +19,7 @@ import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.sn
 import {
   buildThreadActionMenuItems,
   threadActionRequiresOperate,
+  providerForksWhileRunning,
   threadHasRun,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
@@ -35,7 +36,7 @@ import {
   readThreadShell,
   useProjects,
 } from "../state/entities";
-import { usePrimaryEnvironmentId } from "../state/environments";
+import { useEnvironmentProviders, usePrimaryEnvironmentId } from "../state/environments";
 import { readLocalApi } from "../localApi";
 import { configuredHostedAppUrl } from "../hostedPairing";
 import {
@@ -119,6 +120,7 @@ export function useThreadActionMenu(input: {
     onError: (error) => failureToast("Failed to copy thread ID", error),
   });
 
+  const providersByEnvironment = useEnvironmentProviders();
   const openMenu = (position: { x: number; y: number }) => {
     if (threadRef === null) return;
     void (async () => {
@@ -153,6 +155,10 @@ export function useThreadActionMenu(input: {
         isRegeneratingTitle,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
         hasRun: threadHasRun(thread),
+        forksWhileRunning: providerForksWhileRunning(
+          providersByEnvironment.get(threadRef.environmentId),
+          thread.providerInstanceId,
+        ),
         supports,
         snoozePresets,
         canShareWithGuest,
