@@ -226,6 +226,7 @@ import * as RemoteOpenTargets from "./environment/RemoteOpenTargets.ts";
 import * as DefectReporter from "./observability/DefectReporter.ts";
 import * as EventLoopMonitor from "./observability/EventLoopMonitor.ts";
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
+import * as ClientSettingsRegistry from "./clientSettings/ClientSettingsRegistry.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import { requiredScopeForDeviceList, rpcAuthorizationError } from "./auth/RpcAuthorization.ts";
 import * as RpcAuthorization from "./auth/RpcAuthorization.ts";
@@ -1424,6 +1425,7 @@ export const layerWsRpc = (
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
+      const clientSettingsRegistry = yield* ClientSettingsRegistry.ClientSettingsRegistry;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
       yield* Effect.addFinalizer(() =>
         Ref.get(rpcClientIds).pipe(
@@ -2615,6 +2617,8 @@ export const layerWsRpc = (
               ),
             ),
           ),
+        [WS_METHODS.clientSettingsReport]: (input) =>
+          clientSettingsRegistry.report(currentSessionId, input),
         [WS_METHODS.cloudGetRelayClientStatus]: (_input) => relayClient.resolve,
         [WS_METHODS.cloudInstallRelayClient]: (_input) =>
           Stream.callback<RelayClientInstallProgressEvent, RelayClientInstallFailedError>((queue) =>
@@ -3336,6 +3340,17 @@ export const layerWsRpc = (
           Stream.unwrap(
             Effect.map(resourceTelemetry.subscribe, ({ latest, changes }) =>
               Stream.concat(Stream.make(latest), changes),
+            ),
+          ),
+        [WS_METHODS.subscribeClientSettingsPatches]: (input) =>
+          Stream.unwrap(
+            sessions.listActive().pipe(
+              Effect.map((active) => active.find((s) => s.sessionId === currentSessionId)?.client),
+              // The label only names the client for agents; attach without it.
+              Effect.orElseSucceed(() => undefined),
+              Effect.map((client) =>
+                clientSettingsRegistry.attach(currentSessionId, input, client),
+              ),
             ),
           ),
       });

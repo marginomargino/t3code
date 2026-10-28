@@ -1,6 +1,8 @@
 import {
   BackgroundActivityProfile,
   BackgroundActivityProfileSelection,
+  ClientKind,
+  ClientSettingsSchema,
   ExecutionEnvironmentDescriptor,
   OrchestratorMcpEnvironmentTarget,
   OrchestratorMcpFailure,
@@ -14,6 +16,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/ai";
+import * as ClientSettingsRegistry from "../../../clientSettings/ClientSettingsRegistry.ts";
 import * as ServerEnvironment from "../../../environment/ServerEnvironment.ts";
 import * as Keybindings from "../../../keybindings.ts";
 import * as ThreadCommandExecutor from "../../../orchestration-v2/ThreadCommandExecutor.ts";
@@ -105,6 +108,36 @@ const SettingsUpdateTool = Tool.make("t3_settings_update", {
   }),
   success: ServerSettings,
 }).annotate(Tool.Destructive, true);
+const ClientSettingsReadTool = Tool.make("t3_client_settings_read", {
+  ...shared,
+  description:
+    "Read the app settings of each web and desktop client connected now (theme, sidebar, chat width…). Each device keeps its own; mobile is not listed. `t3_settings_read` holds server settings.",
+  dependencies: [...shared.dependencies, ClientSettingsRegistry.ClientSettingsRegistry],
+  success: Schema.Struct({
+    clients: Schema.Array(
+      Schema.Struct({
+        clientId: Schema.String,
+        kind: ClientKind,
+        label: Schema.optionalKey(Schema.String),
+        os: Schema.optionalKey(Schema.String),
+        browser: Schema.optionalKey(Schema.String),
+        settings: ClientSettingsSchema,
+      }),
+    ),
+  }),
+})
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false);
+const ClientSettingsUpdateTool = Tool.make("t3_client_settings_update", {
+  ...shared,
+  description: `Change app settings on one connected client; it applies at once. ${fullAccessOnly} \`clientId\` comes from \`t3_client_settings_read\`; \`patch\` takes its \`settings\` fields, omitted fields are unchanged. Returns what the client saved.`,
+  dependencies: [...shared.dependencies, ClientSettingsRegistry.ClientSettingsRegistry],
+  parameters: Schema.Struct({
+    clientId: Schema.String,
+    patch: Schema.Record(Schema.String, Schema.Unknown),
+  }),
+  success: ClientSettingsSchema,
+}).annotate(Tool.Destructive, true);
 const KeybindingUpsertTool = Tool.make("t3_keybinding_upsert", {
   ...shared,
   description: `Add or replace a keybinding. ${fullAccessOnly} Rule fields and command ids match the keybindings \`t3_settings_read\` returns; \`replace\` names the rule to swap out.`,
@@ -127,6 +160,8 @@ export const EnvironmentToolkit = Toolkit.make(
   EnvironmentPreferencesTool,
   SettingsReadTool,
   SettingsUpdateTool,
+  ClientSettingsReadTool,
+  ClientSettingsUpdateTool,
   KeybindingUpsertTool,
   KeybindingRemoveTool,
 );

@@ -41,6 +41,7 @@ import * as AgentSessionScanner from "./project/AgentSessionScanner.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as AntigravityInstallation from "./provider/AntigravityInstallation.ts";
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
+import * as ClientSettingsRegistry from "./clientSettings/ClientSettingsRegistry.ts";
 import * as CheckpointDiffQuery from "./checkpointing/CheckpointDiffQuery.ts";
 import * as NativeChildWorkQuery from "./orchestration-v2/NativeChildWorkQuery.ts";
 import * as CommandOutputHub from "./orchestration-v2/CommandOutputHub.ts";
@@ -669,6 +670,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(AnalyticsService.AnalyticsService)({}),
   Layer.mock(AntigravityInstallation.AntigravityInstallation)({ managedDirectory: "/unused" }),
   Layer.mock(BackgroundPolicy.BackgroundPolicy)({}),
+  Layer.mock(ClientSettingsRegistry.ClientSettingsRegistry)({}),
   Layer.mock(CheckpointDiffQuery.CheckpointDiffQuery)({}),
   Layer.mock(NativeChildWorkQuery.NativeChildWorkQuery)({}),
   Layer.mock(CommandOutputHub.CommandOutputHub)({}),
