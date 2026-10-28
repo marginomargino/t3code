@@ -1,6 +1,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import {
+  DEFAULT_CLIENT_SETTINGS,
   DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
   ProjectId,
@@ -20,6 +21,7 @@ import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 
+import * as ClientSettingsRegistry from "../../../clientSettings/ClientSettingsRegistry.ts";
 import * as Environment from "../../../environment/ServerEnvironment.ts";
 import * as Keybindings from "../../../keybindings.ts";
 import * as ThreadCommandExecutor from "../../../orchestration-v2/ThreadCommandExecutor.ts";
@@ -116,10 +118,24 @@ const settingsHarness = Effect.fn(function* (initial: ServerSettings) {
   );
   const consumedBy = yield* Ref.make<ReadonlyArray<ProjectId>>([]);
   const upserts = yield* Ref.make<ReadonlyArray<string>>([]);
+  const clientPatches = yield* Ref.make<ReadonlyArray<unknown>>([]);
   const layer = McpToolAccess.HandlersLayer.layer(EnvironmentHandlers.layer).pipe(
     Layer.provideMerge(
       Layer.mergeAll(
         ThreadCommandExecutor.layer,
+        Layer.mock(ClientSettingsRegistry.ClientSettingsRegistry)({
+          update: (clientId, patch) =>
+            clientId === "tab-1"
+              ? Ref.update(clientPatches, (all) => [...all, patch]).pipe(
+                  Effect.as({ ...DEFAULT_CLIENT_SETTINGS, ...patch }),
+                )
+              : Effect.fail(
+                  new ClientSettingsRegistry.ClientSettingsUpdateError({
+                    reason: "unavailable",
+                    message: `Client ${clientId} is not connected; read the live clients again.`,
+                  }),
+                ),
+        }),
         Layer.succeed(McpInvocationContext.McpInvocationContext, {
           environmentId,
           requestNamespace: "provider:settings",
@@ -203,8 +219,68 @@ const settingsHarness = Effect.fn(function* (initial: ServerSettings) {
         .pipe(Stream.unwrap, Stream.runCollect);
       return results.at(-1)?.encodedResult;
     }).pipe(Effect.provide(layer));
-  return { read, update, upsertKeybinding, mutations, patches, consumedBy, upserts };
+  const updateClient = (params: {
+    readonly clientId: string;
+    readonly patch: Readonly<Record<string, unknown>>;
+  }) =>
+    Effect.gen(function* () {
+      const toolkit = yield* EnvironmentToolkit;
+      const results = yield* toolkit
+        .handle("t3_client_settings_update", params)
+        .pipe(Stream.unwrap, Stream.runCollect);
+      return results.at(-1)?.encodedResult;
+    }).pipe(Effect.provide(layer));
+  return {
+    read,
+    update,
+    upsertKeybinding,
+    updateClient,
+    mutations,
+    patches,
+    consumedBy,
+    upserts,
+    clientPatches,
+  };
 });
+
+it.effect("passes an app settings patch to the client and returns what it saved", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const result = yield* harness.updateClient({
+      clientId: "tab-1",
+      patch: { sidebarWorkingShelfEnabled: false },
+    });
+    expect(result).toMatchObject({ sidebarWorkingShelfEnabled: false });
+    expect(yield* Ref.get(harness.clientPatches)).toEqual([{ sidebarWorkingShelfEnabled: false }]);
+  }),
+);
+
+it.effect.each([
+  { onboardingCompletedAt: null },
+  { browserCustomSearchUrl: "https://attacker.example/?q=%s" },
+  { confirmThreadDelete: false },
+])("refuses an app settings patch agents may not make: %o", (patch) =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const result = yield* harness.updateClient({ clientId: "tab-1", patch });
+    expect(result).toMatchObject({ code: "invalid_request" });
+    expect(yield* Ref.get(harness.clientPatches)).toEqual([]);
+  }),
+);
+
+it.effect("tells the agent when the client is no longer connected", () =>
+  Effect.gen(function* () {
+    const harness = yield* settingsHarness(DEFAULT_SERVER_SETTINGS);
+    const result = yield* harness.updateClient({
+      clientId: "tab-gone",
+      patch: { sidebarWorkingShelfEnabled: false },
+    });
+    expect(result).toMatchObject({
+      code: "orchestration_error",
+      message: expect.stringContaining("not connected"),
+    });
+  }),
+);
 
 const upsertAntigravity = (instance: ProviderInstanceConfig): ProviderInstanceMutation => ({
   operation: "upsert",
