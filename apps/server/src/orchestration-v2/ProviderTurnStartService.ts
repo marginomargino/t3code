@@ -354,6 +354,15 @@ const startFailureMessage = (error: Error): string => {
   );
 };
 
+const forkParentNote = (threadId: ThreadId, title: string | null): string =>
+  [
+    "<t3_fork_parent>",
+    ...(title === null ? [] : [`title: ${title}`]),
+    `threadId: ${threadId}`,
+    "This conversation is a fork of that thread: it continues the parent's history from the fork point, and the parent may still be active. Read the parent with t3_thread_read(threadId); message it with t3_thread_send(threadId) to report back or coordinate when the user asks or the work calls for it.",
+    "</t3_fork_parent>",
+  ].join("\n");
+
 export interface ProviderTurnStartServiceV2Shape {
   readonly start: (input: {
     readonly threadId: ThreadId;
@@ -1270,11 +1279,32 @@ export const layer: Layer.Layer<
         session.driver === "claudeAgent" ||
         session.providerSession.capabilities.turns.supportsNativeGoals === true;
       const goalCommand = goalDriver && parseGoalCommand(providerMessage) !== null;
+      const forkTransfer =
+        goalCommand || slashCommand || isProviderCommand(providerMessage)
+          ? undefined
+          : projection.contextTransfers.find(
+              (transfer) =>
+                transfer.type === "fork" &&
+                transfer.targetThreadId === input.threadId &&
+                transfer.targetRunId === run.id,
+            );
+      // A deleted parent must not block the fork's turn; the note just loses its title.
+      const forkParentTitle =
+        forkTransfer === undefined
+          ? null
+          : yield* projectionStore.getThreadRecords(forkTransfer.sourceThreadId, []).pipe(
+              Effect.map(({ thread }) => thread.title),
+              Effect.orElseSucceed(() => null),
+            );
+      const forkedText =
+        forkTransfer === undefined
+          ? messageText
+          : `${messageText}\n\n${forkParentNote(forkTransfer.sourceThreadId, forkParentTitle)}`;
       // Part of the user text, so every way a turn starts carries it, after the user's own words.
       const userText =
         run.outputSchema === undefined || goalCommand || isProviderCommand(providerMessage)
-          ? messageText
-          : `${messageText}\n\n${outputInstructions(run.outputSchema)}`;
+          ? forkedText
+          : `${forkedText}\n\n${outputInstructions(run.outputSchema)}`;
       // The provider turn marks cancellation work delivered; restart continuations use their own text or resume natively.
       const noteContinuation = isRestartNoteContinuation(
         run,
