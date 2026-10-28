@@ -194,7 +194,7 @@ const ClaudeSessionSearchTool = Tool.make("t3_claude_session_search", {
   success: ClaudeSessionSearchResult,
   dependencies: [...shared.dependencies, AgentSessionImporter.AgentSessionImporter],
 })
-  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Readonly, false)
   .annotate(Tool.Destructive, false);
 const ClaudeSessionImportTool = Tool.make("t3_claude_session_import", {
   ...shared,

@@ -1768,7 +1768,6 @@ export const CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS: ReadonlyArray<string> = [
   "mcp__t3-code__t3_worktree_list",
   "mcp__t3-code__t3_project_list",
   "mcp__t3-code__t3_project_read",
-  "mcp__t3-code__t3_claude_session_search",
   "mcp__t3-code__t3_thread_search",
   "mcp__t3-code__t3_preview_list",
   "mcp__t3-code__t3_environment_read",
@@ -11440,7 +11439,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 const transcript = yield* claudeTranscriptState(nativeThreadId).pipe(
                   Effect.orElseSucceed(() => "missing" as const),
                 );
-                if (transcript === "empty") {
+                // An imported thread was never opened by T3; without its transcript only the fallback summary carries its history.
+                const neverOpened =
+                  threadInput.providerThread.providerSessionId === null &&
+                  threadInput.providerThread.firstRunOrdinal === null;
+                if (transcript === "empty" || (transcript === "missing" && neverOpened)) {
                   return yield* new ProviderAdapter.ProviderAdapterProtocolError({
                     driver: CLAUDE_PROVIDER,
                     detail: `Claude session ${nativeThreadId} has no conversation to resume.`,

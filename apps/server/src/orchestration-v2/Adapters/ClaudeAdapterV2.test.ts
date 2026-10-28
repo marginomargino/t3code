@@ -6083,6 +6083,23 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       const options = harness.getOpenedOptions();
       assert.equal(options?.resume, "imported-native-session");
       assert.isUndefined(options?.sessionId);
+
+      // A pruned transcript must fail so the fallback summary restores the imported history.
+      const pruned = yield* Effect.flip(
+        harness.runtime.resumeThread({
+          providerThread: {
+            ...harness.providerThread,
+            providerSessionId: null,
+            firstRunOrdinal: null,
+            nativeThreadRef: {
+              driver: ClaudeAdapterV2.CLAUDE_PROVIDER,
+              nativeId: "pruned-native-session",
+              strength: "strong",
+            },
+          },
+        }),
+      );
+      assert.equal(pruned._tag, "ProviderAdapterResumeThreadError");
     }).pipe(
       Effect.scoped,
       Effect.provide(
