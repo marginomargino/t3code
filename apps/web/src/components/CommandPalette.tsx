@@ -123,7 +123,7 @@ import {
 import { useClientSettings } from "../hooks/useSettings";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useForkThread } from "../hooks/useForkThread";
-import { threadCanFork, threadHasRun } from "./threadActionMenu.logic";
+import { providerForksWhileRunning, threadCanFork, threadHasRun } from "./threadActionMenu.logic";
 import { readLocalApi } from "../localApi";
 import { configuredHostedAppUrl } from "../hostedPairing";
 import { desktopLocalBackendId } from "../connection/desktopLocal";
@@ -1606,6 +1606,10 @@ function OpenCommandPaletteDialog(props: {
         !threadCanFork({
           hasRun: threadHasRun(thread),
           isRunning: !threadRuntimeCanArchive(thread.runtime),
+          forksWhileRunning: providerForksWhileRunning(
+            providersByEnvironment.get(thread.environmentId),
+            thread.providerInstanceId,
+          ),
         }),
       icon: <GitForkIcon className={ITEM_ICON_CLASS} />,
       run: async () => {

@@ -182,6 +182,7 @@ import {
   isThreadTriageAction,
   threadActionRequiresOperate,
   threadHasRun,
+  providerForksWhileRunning,
 } from "./threadActionMenu.logic";
 import {
   applySidebarThreadDrop,
@@ -2778,6 +2779,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               hasCompletedRun: canMarkLatestRunUnread(thread.latestRun),
               hasRun: threadHasRun(thread),
+              forksWhileRunning: providerForksWhileRunning(
+                appAtomRegistry
+                  .get(environmentPresentations.providersByEnvironmentAtom)
+                  .get(thread.environmentId),
+                thread.providerInstanceId,
+              ),
               canShareWithGuest: appAtomRegistry.get(
                 canShareWithGuestAtom(threadRef.environmentId),
               ),
