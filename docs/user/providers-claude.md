@@ -38,6 +38,10 @@ Add a second Claude instance in **Settings → Providers** (or **Add Claude acco
 - **Skills**: Loaded from `<CLAUDE_CONFIG_DIR>/skills`, the project's `.claude/skills` (config dir wins on name collisions), and enabled Claude plugins (e.g. `plugin:review`). Invoke via `$`. Send `disable-model-invocation` skills one per message.
 - **MCP OAuth**: When a Claude MCP server needs sign-in, click **Sign in** on the thread notice, approve in your browser, and paste the final redirect URL into T3 Code (**Finish sign-in**). Connectors added on `claude.ai` authenticate there instead.
 
+## Import a Claude Code session
+
+Open the command palette and choose **Import Claude session**, then enter a session ID or part of its title. Sessions of any age can be imported; the session's folder must already be a project. Importing the same session again opens the existing thread. The thread shows recent messages without tool activity, and your next message resumes the Claude Code session itself, so Claude keeps its full context.
+
 ## Claude in Chrome
 
 To use the [Claude in Chrome extension](https://code.claude.com/docs/en/chrome) in T3 Code threads, add `--chrome` to **Launch arguments** in the Claude instance settings (applies to new sessions). Requires a direct Anthropic `/login` plan—not supported with API keys, `setup-token`, Bedrock/Vertex, or WSL.

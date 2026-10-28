@@ -26,7 +26,7 @@ Select **Set up** to scan the QR code for iOS or Android, then sign in to T3 Con
 T3 Code scans directories used by Claude Code, Codex, and Pi (turn on Pi under **Add more agents** to include Pi sessions).
 
 - Git repositories active in the last 30 days with at least three conversations are pre-selected (excluding already-added projects, Codex scratch directories, and `Downloads`). Use **Review all** to customize the selection.
-- Conversations active in the last 30 days are imported so you can continue them in T3 Code.
+- Conversations active in the last 30 days are imported so you can continue them in T3 Code. Your next message resumes the original session, so the agent keeps its full context. To import one older Claude session, see [Import a Claude Code session](./providers-claude.md#import-a-claude-code-session).
 
 ### Import limits
 
