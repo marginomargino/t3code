@@ -2066,10 +2066,8 @@ const resolveClaudeForkUpToMessageId = Effect.fn("ClaudeAdapterV2.resolveForkUpT
       return boundaryNativeId;
     }
 
-    const terminalTurnsAfterBoundary = sourceTurns
-      .slice(boundaryIndex + 1)
-      .filter(isTerminalProviderTurn);
-    if (terminalTurnsAfterBoundary.length === 0) {
+    // A turn still streaming after the boundary would otherwise be copied by a full-session fork.
+    if (boundaryIndex === sourceTurns.length - 1) {
       return undefined;
     }
 

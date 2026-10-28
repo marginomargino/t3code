@@ -1,4 +1,4 @@
-import type { ContextMenuItem } from "@t3tools/contracts";
+import type { ContextMenuItem, ProviderInstanceId, ServerProvider } from "@t3tools/contracts";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 
@@ -86,6 +86,7 @@ export interface ThreadActionMenuState {
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
   readonly hasRun: boolean;
+  readonly forksWhileRunning: boolean;
   readonly supports: {
     readonly settlement: boolean;
     readonly autoSettleOptOut: boolean;
@@ -100,12 +101,23 @@ export interface ThreadActionMenuState {
   readonly canTurnIntoProject?: boolean;
 }
 
-/** The server forks from the latest stable run, and providers refuse to fork mid-turn. */
+/** The server forks from the latest stable run; most providers refuse to fork mid-turn. */
 export function threadCanFork(input: {
   readonly hasRun: boolean;
   readonly isRunning: boolean;
+  readonly forksWhileRunning: boolean;
 }): boolean {
-  return input.hasRun && !input.isRunning;
+  return input.hasRun && (!input.isRunning || input.forksWhileRunning);
+}
+
+/** Claude forks into its own session up to a finished turn, leaving a live parent turn untouched. */
+export function providerForksWhileRunning(
+  providers: ReadonlyArray<Pick<ServerProvider, "instanceId" | "driver">> | undefined,
+  instanceId: ProviderInstanceId,
+): boolean {
+  return (
+    providers?.find((provider) => provider.instanceId === instanceId)?.driver === "claudeAgent"
+  );
 }
 
 export function threadHasRun(thread: Pick<EnvironmentThreadShell, "latestRun">): boolean {
