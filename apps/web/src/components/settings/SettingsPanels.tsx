@@ -483,6 +483,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
       ? ["Working section"]
       : []),
+    ...(settings.sidebarForkDisplay !== DEFAULT_UNIFIED_SETTINGS.sidebarForkDisplay
+      ? ["Show forks under parent"]
+      : []),
     ...(settings.sidebarAutoSettleAfterDays !== DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays
       ? ["Auto-settle inactive threads"]
       : []),
@@ -649,6 +652,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
+      sidebarForkDisplay: DEFAULT_UNIFIED_SETTINGS.sidebarForkDisplay,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       sidebarAutoSettleKeepPullRequests: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleKeepPullRequests,
       sidebarAutoSettleOnMerge: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleOnMerge,
@@ -901,6 +905,31 @@ export function GeneralSettingsPanel() {
                 updateSettings({ sidebarWorkingShelfEnabled: Boolean(checked) })
               }
               aria-label="Working section"
+            />
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("sidebar-fork-display")}
+          description="Nest forked threads under their parent when both are in the same sidebar section."
+          resetAction={
+            settings.sidebarForkDisplay !== DEFAULT_UNIFIED_SETTINGS.sidebarForkDisplay ? (
+              <SettingResetButton
+                label="fork display"
+                onClick={() =>
+                  updateSettings({
+                    sidebarForkDisplay: DEFAULT_UNIFIED_SETTINGS.sidebarForkDisplay,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.sidebarForkDisplay === "nested"}
+              onCheckedChange={(checked) =>
+                updateSettings({ sidebarForkDisplay: checked ? "nested" : "flat" })
+              }
+              aria-label="Show forks under parent"
             />
           }
         />

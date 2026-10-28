@@ -944,6 +944,8 @@ function turnItemText(item: OrchestrationV2TurnItem): string | null {
       return item.summary ?? `${item.strategy} handoff to ${item.toProviderInstanceId}`;
     case "fork":
       return `Forked to thread ${item.targetThreadId}.`;
+    case "merge_back":
+      return `Fork "${item.sourceThreadTitle}" (thread ${item.sourceThreadId}) merged back.`;
     case "thread_created":
       return `Created thread ${item.targetThreadId} with ${item.targetProviderInstanceId} (${item.targetModel}).`;
     case "secret_request":

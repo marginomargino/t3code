@@ -1,19 +1,16 @@
 # Context handoffs
 
-Portable provider and fork handoffs are textual summaries. They do not claim native provider context
-parity.
-
-`ContextHandoffServiceV2` includes user messages, assistant messages, command executions, file
-changes, checkpoints, and prior handoffs. It skips other turn item types. For text-bearing items,
-`compactText` replaces every whitespace run with one space, trims the result, and returns at most
-240 characters. A truncated value contains the first 237 characters followed by `...`. File changes
-carry the filename, while checkpoints carry only the number of files.
+Portable provider handoffs are textual history. They do not claim native provider context parity.
 
 Provider handoffs use either the full eligible app history or the delta since that provider last
-participated. Fork merge-back handoffs summarize eligible delta items from the child. Neither path
-reconstructs provider-native session state, tool state, approvals, or omitted text.
+participated. This path does not reconstruct provider-native session state, tool state, approvals,
+or omitted text.
+
+Fork merge-back hands the parent a pointer, not the fork's content: the fork's title and thread id,
+plus an instruction to read the fork with `t3_thread_read` or ask it with `t3_thread_send` when
+relevant. The parent timeline gets a `merge_back` turn item linking the fork, unless the transfer is
+already known to be undeliverable.
 
 Legacy v1 continuation uses a separate algorithm. It considers only user and assistant messages,
 walks backward from the newest message, and builds a transcript suffix within a 32,000-character
-budget. Do not describe that migration budget as the limit for portable handoffs, and do not describe
-the 240-character prefix as a migration rule.
+budget. Do not describe that migration budget as the limit for portable handoffs.

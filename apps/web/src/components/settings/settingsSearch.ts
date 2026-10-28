@@ -466,6 +466,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["beta boring sidebar folder rows multiline branch pull request details"],
   },
   {
+    id: "sidebar-fork-display",
+    title: "Show forks under parent",
+    to: "/settings/general",
+    searchTerms: ["fork nested tree indent parent child threads sidebar"],
+  },
+  {
     id: "guest-links",
     title: "Guest links",
     to: "/settings/labs",

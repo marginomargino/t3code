@@ -4651,6 +4651,32 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       occurredAt: now,
       payload: transfer,
     });
+    if (transfer.error !== null) return;
+    yield* emitEvent({
+      type: "turn-item.updated",
+      threadId: command.targetThreadId,
+      providerInstanceId: sourceRun.providerInstanceId,
+      occurredAt: now,
+      payload: {
+        id: TurnItemId.make(`turn-item:merge-back:${transferId}`),
+        threadId: command.targetThreadId,
+        runId: null,
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal: yield* nextTurnItemOrdinal({ thread: targetProjection.thread }),
+        status: "completed",
+        title: "Fork merged back",
+        startedAt: now,
+        completedAt: now,
+        updatedAt: now,
+        type: "merge_back",
+        sourceThreadId: command.sourceThreadId,
+        sourceThreadTitle: sourceProjection.thread.title,
+      },
+    });
   });
 
   const dispatchSteerIntoRun = Effect.fn("Orchestrator.dispatchSteerIntoRun")(function* (input: {
@@ -7124,11 +7150,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               toProviderThreadId: providerThread.id,
               fromProviderInstanceId: mergeBackSourceRun.providerInstanceId,
               toProviderInstanceId: modelSelection.instanceId,
+              sourceThreadTitle: mergeBackSourceProjection.thread.title,
               coveredRunOrdinals: visibleDeltaRunOrdinals(
                 mergeBackSourceProjection,
                 mergeBackDeltaItems,
               ),
-              deltaItems: mergeBackDeltaItems,
               createdAt: now,
             })
             .pipe(
