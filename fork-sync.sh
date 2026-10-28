@@ -2,7 +2,8 @@
 # Rebuilds fork/main = origin/main + every fork/<order>-<name> branch, merged in order.
 #   fork/20-foo     is rebased onto origin/main
 #   fork/20.1-bar   is stacked on fork/20-*, rebased onto it
-# Run from a worktree that may switch branches freely (not the main checkout).
+# Run from a worktree that may switch branches freely (not the main checkout), with
+# no fork/* branch checked out anywhere (detach the main checkout first).
 # Stops on a conflict rerere can't resolve; fix it, finish the rebase/merge, rerun.
 set -euo pipefail
 
@@ -47,3 +48,5 @@ if git merge-base --is-ancestor main origin/main; then
     echo "main is checked out elsewhere; run there: git merge --ff-only origin/main"
 fi
 echo "fork/main rebuilt: $(git rev-parse --short HEAD)"
+# Release fork/main so the main checkout can switch back to it.
+git switch --detach
