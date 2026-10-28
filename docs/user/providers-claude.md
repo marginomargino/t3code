@@ -40,7 +40,7 @@ Add a second Claude instance in **Settings → Providers** (or **Add Claude acco
 
 ## Import a Claude Code session
 
-Open the command palette and choose **Import Claude session**, then enter a session ID or part of its title. Sessions of any age can be imported; the session's folder must already be a project. Importing the same session again opens the existing thread. The thread shows recent messages without tool activity, and your next message resumes the Claude Code session itself, so Claude keeps its full context.
+Open the command palette and choose **Import Claude session**, then enter a session ID or part of its title. Sessions older than the Welcome page's 30-day window can be imported too; search covers your 5,000 most recent sessions. The session's folder must already be a project. Importing the same session again opens the existing thread. The thread shows recent messages without tool activity, and your next message resumes the Claude Code session itself, so Claude keeps its full context. If Claude Code has since deleted the session, T3 Code starts a new one with a summary of the imported messages instead.
 
 ## Claude in Chrome
 
