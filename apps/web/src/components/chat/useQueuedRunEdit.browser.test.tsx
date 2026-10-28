@@ -154,6 +154,7 @@ async function beginChangedEdit(hook: { current: HookResult | null }) {
       runId: RUN,
       messageId: MessageId.make("message-1"),
       text: "original",
+      shellCommand: false,
       attachments: [],
     }),
   );
@@ -198,6 +199,7 @@ describe("useQueuedRunEdit", () => {
         messageId: MessageId.make("message-1"),
         text: prefix + ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
         attachments,
+        shellCommand: false,
       };
       await act(() => requireHook(hook).beginEdit(request));
       expect(
@@ -250,6 +252,7 @@ describe("useQueuedRunEdit", () => {
             sizeBytes: 10,
           },
         ],
+        shellCommand: false,
       }),
     );
     await act(() => requireHook(hook).removeEditingAttachment("removed"));

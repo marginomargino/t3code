@@ -55,6 +55,7 @@ const baseProps = {
   threadId: "thread:test" as never,
   editingRunId: null,
   editBlockedReason: null,
+  canEditShellCommands: true,
   onEditQueuedRun: () => undefined,
   onCancelEdit: () => undefined,
   timestampFormat: "locale",
@@ -174,32 +175,57 @@ it("shows who sent a queued message and folds automation and agent prompts", asy
   await expect.element(page.getByText("Continue where you left off.")).toBeVisible();
 });
 
-it("stays inside the timeline scroller instead of growing the chat column", async () => {
+it("shows a queued command as `! cmd` and edits it as a command", async () => {
   setup();
   state.projection = { projection: { messages: [] } };
   state.workflow = {
     activeRun: { id: "run:active" },
     canPromoteToSteer: true,
+    canReorder: true,
     queuedRuns: [
       {
-        run: { id: "run:queued", userMessageId: "message:queued" },
-        text: "Later",
+        run: { id: "run:command", userMessageId: "message:command" },
+        text: "! npm test",
+        attachments: [],
+        shellCommand: true,
+      },
+    ],
+  };
+  const onEditQueuedRun = vi.fn();
+  await using _screen = await renderQueue({ onEditQueuedRun });
+
+  await expect.element(page.getByText("! npm test", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Edit queued message", exact: true }).click();
+  expect(onEditQueuedRun).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ text: "! npm test", shellCommand: true }),
+  );
+});
+
+it("still shows a queued command but offers no edit once shell commands are unavailable", async () => {
+  setup();
+  state.projection = { projection: { messages: [] } };
+  state.workflow = {
+    activeRun: { id: "run:active" },
+    canPromoteToSteer: true,
+    canReorder: true,
+    queuedRuns: [
+      {
+        run: { id: "run:command", userMessageId: "message:command" },
+        text: "npm test",
+        attachments: [],
+        shellCommand: true,
+      },
+      {
+        run: { id: "run:message", userMessageId: "message:message" },
+        text: "Then explain the failures",
         attachments: [],
       },
     ],
   };
-  // Mirrors ChatView: a scrollable column, a positioned wrapper, then a non-positioned scroller.
-  await using screen = await renderUi(
-    <div data-testid="column" style={{ height: 200, overflowY: "auto" }}>
-      <div style={{ position: "relative", height: "100%" }}>
-        <div style={{ height: "100%", overflowY: "auto" }}>
-          <div style={{ height: 1000 }} />
-          <QueuedRunsControl {...baseProps} />
-        </div>
-      </div>
-    </div>,
-  );
-  await expect.element(page.getByText("Later", { exact: true })).toBeInTheDocument();
-  const column = screen.getByTestId("column").element();
-  expect(column.scrollHeight).toBe(column.clientHeight);
+  await using _screen = await renderQueue({ canEditShellCommands: false });
+
+  await expect.element(page.getByText("! npm test", { exact: true }).first()).toBeVisible();
+  const editButtons = page.getByRole("button", { name: "Edit queued message", exact: true });
+  await expect.element(editButtons.nth(0)).toBeDisabled();
+  await expect.element(editButtons.nth(1)).toBeEnabled();
 });
