@@ -44,6 +44,9 @@ export type T3McpToolSummaryAction =
   | "worktree-handoff"
   | "worktree-list"
   | "worktree-status"
+  | "terminal-run"
+  | "terminal-read"
+  | "terminal-stop"
   | "project-list"
   | "project-read"
   | "project-create"
@@ -185,6 +188,9 @@ const T3_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
     "worktree-handoff",
   ),
   t3_worktree_status: tool(["Get", "Getting", "Got", "thread worktree status"], "worktree-status"),
+  t3_terminal_run: tool(["Start", "Starting", "Started", "a T3 terminal command"], "terminal-run"),
+  t3_terminal_read: tool(["Read", "Reading", "Read", "a T3 terminal"], "terminal-read"),
+  t3_terminal_stop: tool(["Stop", "Stopping", "Stopped", "a T3 terminal command"], "terminal-stop"),
   preview_status: tool(["Get", "Getting", "Got", "preview browser status"], "browser", "browser"),
   preview_open: tool(
     ["Open", "Opening", "Opened", "a page in the preview browser"],

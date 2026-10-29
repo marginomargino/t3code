@@ -327,6 +327,23 @@ export function summarizeT3ToolCalls(
     case "worktree-status":
       label = phrase("Checked", "check", `worktree status ${times}`);
       break;
+    case "terminal-run":
+      label = phrase(
+        "Started",
+        "start",
+        quantity(countEntities(entityIds("terminalId")), "terminal command"),
+      );
+      break;
+    case "terminal-read":
+      label = phrase("Read", "read", quantity(countEntities(entityIds("terminalId")), "terminal"));
+      break;
+    case "terminal-stop":
+      label = phrase(
+        "Stopped",
+        "stop",
+        quantity(countEntities(entityIds("terminalId")), "terminal command"),
+      );
+      break;
     case "project-list":
       label = phrase("Listed", "list", `projects ${times}`);
       break;
