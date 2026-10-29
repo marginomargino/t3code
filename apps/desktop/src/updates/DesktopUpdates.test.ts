@@ -102,12 +102,19 @@ describe("DesktopUpdates", () => {
     }),
   );
 
-  it.effect("enables an updater that provides its own feed, whatever the channel", () =>
+  it.effect("enables an updater that provides its own feed, whatever the channel or env", () =>
     Effect.gen(function* () {
-      const statuses = (providesOwnFeed: boolean, mockUpdates: boolean) => {
+      const statuses = (
+        providesOwnFeed: boolean,
+        mockUpdates: boolean,
+        disableAutoUpdate = false,
+      ) => {
         const harness = makeHarness({
           providesOwnFeed,
-          env: { T3CODE_DESKTOP_MOCK_UPDATES: String(mockUpdates) },
+          env: {
+            T3CODE_DESKTOP_MOCK_UPDATES: String(mockUpdates),
+            T3CODE_DISABLE_AUTO_UPDATE: String(disableAutoUpdate),
+          },
         });
         return Effect.scoped(
           Effect.gen(function* () {
@@ -123,6 +130,7 @@ describe("DesktopUpdates", () => {
       };
 
       assert.deepEqual(yield* statuses(true, false), ["idle", "available"]);
+      assert.deepEqual(yield* statuses(true, false, true), ["idle", "available"]);
       assert.equal((yield* statuses(false, false))[0], "disabled");
       assert.notEqual((yield* statuses(false, true))[1], "available");
     }),

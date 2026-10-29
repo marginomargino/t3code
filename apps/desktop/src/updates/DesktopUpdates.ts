@@ -482,7 +482,8 @@ export const make = Effect.gen(function* () {
         platform: environment.platform,
         appImage: Option.getOrUndefined(config.appImagePath),
         isDebPackage,
-        disabledByEnv: config.disableAutoUpdate,
+        // The env flag guards against the official feed; an updater with its own feed ignores it.
+        disabledByEnv: config.disableAutoUpdate && !electronUpdater.providesOwnFeed,
         hasUpdateFeedConfig: hasFeedConfig,
       }),
     );
