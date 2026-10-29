@@ -2,12 +2,17 @@
 import * as NodeChildProcess from "node:child_process";
 
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import type * as PlatformError from "effect/PlatformError";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
+import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
@@ -104,6 +109,8 @@ const ignoreSetting = Effect.fn("LocalRebuildUpdater.ignoreSetting")(function (_
   return Effect.void;
 });
 
+type LocalRebuildBuildError = LocalRebuildCommandError | PlatformError.PlatformError;
+
 interface PendingBuild {
   readonly commit: string;
   readonly version: string;
@@ -111,12 +118,19 @@ interface PendingBuild {
 
 export const make = Effect.fn("LocalRebuildUpdater.make")(function* (
   metadata: LocalRebuildPackageMetadata,
+  options: {
+    readonly runBuildScript?: (
+      pending: PendingBuild,
+      outputDir: string,
+    ) => Effect.Effect<unknown, LocalRebuildBuildError>;
+  } = {},
 ) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const electronApp = yield* ElectronApp.ElectronApp;
   const arch = yield* HostProcess.Architecture;
+  const scope = yield* Scope.Scope;
   const { repo, branch } = metadata.t3codeLocalRebuild;
   const outputDir = path.join(repo, ".t3", "local-rebuild-out");
   const logPath = path.join(repo, ".t3", "local-rebuild.log");
@@ -127,12 +141,22 @@ export const make = Effect.fn("LocalRebuildUpdater.make")(function* (
   };
   const pendingRef = yield* Ref.make(Option.none<PendingBuild>());
   const artifactRef = yield* Ref.make(Option.none<{ zip: string; version: string }>());
+  const buildRef = yield* Ref.make(
+    Option.none<{ version: string; fiber: Fiber.Fiber<void, LocalRebuildBuildError> }>(),
+  );
+  const buildLock = yield* Semaphore.make(1);
 
   const run = (label: string, command: string, args: ReadonlyArray<string>) =>
     Effect.scoped(
       Effect.gen(function* () {
         const handle = yield* spawner.spawn(
-          ChildProcess.make(command, args, { stdin: "ignore", stderr: "pipe", extendEnv: true }),
+          ChildProcess.make(command, args, {
+            stdin: "ignore",
+            stderr: "pipe",
+            extendEnv: true,
+            // An interrupted build must be gone before the next one reuses its checkout.
+            forceKillAfter: "5 seconds",
+          }),
         );
         const [stdout, stderr, exitCode] = yield* Effect.all(
           [
@@ -173,6 +197,7 @@ export const make = Effect.fn("LocalRebuildUpdater.make")(function* (
         (yield* isAncestor(branchCommit, builtCommit.value)))
     ) {
       yield* Ref.set(pendingRef, Option.none());
+      yield* stopBuild;
       emit("update-not-available");
       return;
     }
@@ -189,29 +214,77 @@ export const make = Effect.fn("LocalRebuildUpdater.make")(function* (
           `${builtCommit.value}..${branchCommit}`,
         ).pipe(Effect.orElseSucceed(() => ""))
       : "";
-    yield* Ref.set(pendingRef, Option.some({ commit: branchCommit, version }));
+    const pending = { commit: branchCommit, version };
+    yield* Ref.set(pendingRef, Option.some(pending));
     emit("update-available", { version, releaseNotes: subjects });
+    const artifact = yield* Ref.get(artifactRef);
+    if (Option.isSome(artifact) && artifact.value.version === version) {
+      emit("update-downloaded", { version });
+      return;
+    }
+    // Build ahead of the click, so the button only has to restart into the new app. A failed
+    // prebuild stays quiet and is not retried here; the click rebuilds it and reports failures.
+    yield* startBuild(pending, { retryFailed: false });
   });
+
+  const runBuildScript =
+    options.runBuildScript ??
+    (({ commit, version }: PendingBuild) =>
+      run(`build (log: ${logPath})`, "/bin/zsh", [
+        "-ilc",
+        BUILD_SCRIPT,
+        "local-rebuild",
+        repo,
+        commit,
+        branch,
+        version,
+        arch,
+        outputDir,
+        logPath,
+      ]));
+
+  const buildCommit = Effect.fn("LocalRebuildUpdater.buildCommit")(function* (
+    pending: PendingBuild,
+  ) {
+    yield* runBuildScript(pending, outputDir);
+    const zip = (yield* fileSystem.readFileString(path.join(outputDir, ".artifact"))).trim();
+    yield* Ref.set(artifactRef, Option.some({ zip, version: pending.version }));
+    emit("update-downloaded", { version: pending.version });
+  });
+
+  const stopBuild = buildLock.withPermits(1)(
+    Effect.gen(function* () {
+      const current = yield* Ref.get(buildRef);
+      if (Option.isSome(current)) yield* Fiber.interrupt(current.value.fiber);
+      yield* Ref.set(buildRef, Option.none());
+    }),
+  );
+
+  // One build per version: a check starts it, a click joins it, a newer commit replaces it.
+  const startBuild = (pending: PendingBuild, { retryFailed }: { retryFailed: boolean }) =>
+    buildLock.withPermits(1)(
+      Effect.gen(function* () {
+        const current = yield* Ref.get(buildRef);
+        if (Option.isSome(current)) {
+          const { fiber, version } = current.value;
+          const exit = yield* Effect.sync(() => fiber.pollUnsafe());
+          const failed = exit !== undefined && Exit.isFailure(exit);
+          if (version === pending.version && (!failed || !retryFailed)) return fiber;
+          yield* Fiber.interrupt(fiber);
+        }
+        yield* Ref.set(artifactRef, Option.none());
+        const fiber = yield* buildCommit(pending).pipe(
+          Effect.forkIn(scope, { startImmediately: true }),
+        );
+        yield* Ref.set(buildRef, Option.some({ version: pending.version, fiber }));
+        return fiber;
+      }),
+    );
 
   const build = Effect.gen(function* () {
     const pending = yield* Ref.get(pendingRef);
     if (Option.isNone(pending)) return yield* new LocalRebuildStateError({ step: "download" });
-    const { commit, version } = pending.value;
-    yield* run(`build (log: ${logPath})`, "/bin/zsh", [
-      "-ilc",
-      BUILD_SCRIPT,
-      "local-rebuild",
-      repo,
-      commit,
-      branch,
-      version,
-      arch,
-      outputDir,
-      logPath,
-    ]);
-    const zip = (yield* fileSystem.readFileString(path.join(outputDir, ".artifact"))).trim();
-    yield* Ref.set(artifactRef, Option.some({ zip, version }));
-    emit("update-downloaded", { version });
+    yield* Fiber.join(yield* startBuild(pending.value, { retryFailed: true }));
   });
 
   const install = Effect.gen(function* () {
