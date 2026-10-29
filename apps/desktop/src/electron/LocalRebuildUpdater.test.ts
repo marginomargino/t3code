@@ -1,9 +1,12 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
+import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
@@ -59,7 +62,7 @@ const commitVersion = Effect.fn("test.commitVersion")(function* (
 });
 
 describe("LocalRebuildUpdater", () => {
-  it.live("offers the branch head as an update unless it is at or behind the built commit", () =>
+  it.live("prebuilds a newer branch head once and leaves retries to the click", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
@@ -71,33 +74,118 @@ describe("LocalRebuildUpdater", () => {
         const head = yield* commitVersion(repo, "0.1.4-nightly.1", "second");
         yield* git(repo, "branch", "behind", built);
 
-        const check = (builtHash: string, branch = "fork/main") =>
-          Effect.scoped(
-            Effect.gen(function* () {
-              const updater = yield* LocalRebuildUpdater.make({
+        // Each build waits on its own gate; a failing build never writes its artifact.
+        const updaterFor = (builtHash: string, options: { fail?: boolean; branch?: string } = {}) =>
+          Effect.gen(function* () {
+            const started = yield* Queue.unbounded<Deferred.Deferred<void>>();
+            let builds = 0;
+            const updater = yield* LocalRebuildUpdater.make(
+              {
                 t3codeCommitHash: builtHash,
-                t3codeLocalRebuild: { repo, branch },
-              });
-              const events: Array<[string, unknown]> = [];
-              for (const eventName of ["update-available", "update-not-available"]) {
-                yield* updater.on(eventName, (info?: unknown) => events.push([eventName, info]));
-              }
-              yield* updater.checkForUpdates;
-              return events;
-            }),
-          );
+                t3codeLocalRebuild: { repo, branch: options.branch ?? "fork/main" },
+              },
+              {
+                runBuildScript: (_pending, outputDir) =>
+                  Effect.gen(function* () {
+                    builds += 1;
+                    const gate = yield* Deferred.make<void>();
+                    yield* Queue.offer(started, gate);
+                    yield* Deferred.await(gate);
+                    // Like the real build script, start from an empty output directory.
+                    yield* fileSystem.remove(outputDir, { recursive: true, force: true });
+                    yield* fileSystem.makeDirectory(outputDir, { recursive: true });
+                    if (!options.fail) {
+                      yield* fileSystem.writeFileString(path.join(outputDir, ".artifact"), "a.zip");
+                    }
+                  }),
+              },
+            );
+            const events: Array<[string, unknown]> = [];
+            for (const eventName of [
+              "update-available",
+              "update-not-available",
+              "update-downloaded",
+              "error",
+            ]) {
+              yield* updater.on(eventName, (info?: unknown) => events.push([eventName, info]));
+            }
+            const releaseNextBuild = Queue.take(started).pipe(
+              Effect.flatMap((gate) => Deferred.succeed(gate, undefined)),
+            );
+            return { updater, events, releaseNextBuild, builds: () => builds };
+          });
 
         const headVersion = `0.1.4-local.g${head.slice(0, 10)}`;
-        assert.deepEqual(yield* check(built.slice(0, 12)), [
-          ["update-available", { version: headVersion, releaseNotes: "- second" }],
-        ]);
-        assert.deepEqual(yield* check(head.slice(0, 12)), [["update-not-available", undefined]]);
-        assert.deepEqual(yield* check(head.slice(0, 12), "behind"), [
-          ["update-not-available", undefined],
-        ]);
-        assert.deepEqual(yield* check("unknown"), [
-          ["update-available", { version: headVersion, releaseNotes: "" }],
-        ]);
+        const available: [string, unknown] = [
+          "update-available",
+          { version: headVersion, releaseNotes: "- second" },
+        ];
+
+        // A check prebuilds; a click and a re-check during that build join it.
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const { updater, events, releaseNextBuild, builds } = yield* updaterFor(
+              built.slice(0, 12),
+            );
+            yield* updater.checkForUpdates;
+            const click = yield* updater.downloadUpdate.pipe(Effect.forkScoped);
+            yield* updater.checkForUpdates;
+            yield* releaseNextBuild;
+            yield* Fiber.join(click);
+            assert.equal(builds(), 1);
+            assert.deepEqual(events, [
+              available,
+              available,
+              ["update-downloaded", { version: headVersion }],
+            ]);
+          }),
+        );
+
+        // A failed prebuild stays quiet and is not retried by checks; the click rebuilds it.
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const { updater, events, releaseNextBuild, builds } = yield* updaterFor(
+              built.slice(0, 12),
+              { fail: true },
+            );
+            yield* updater.checkForUpdates;
+            const firstClick = yield* updater.downloadUpdate.pipe(Effect.flip, Effect.forkScoped);
+            yield* releaseNextBuild;
+            yield* Fiber.join(firstClick);
+            yield* updater.checkForUpdates;
+            assert.equal(builds(), 1);
+            const secondClick = yield* updater.downloadUpdate.pipe(Effect.flip, Effect.forkScoped);
+            yield* releaseNextBuild;
+            yield* Fiber.join(secondClick);
+            assert.equal(builds(), 2);
+            assert.deepEqual(events, [available, available]);
+          }),
+        );
+
+        for (const [builtHash, branch] of [
+          [head.slice(0, 12), "fork/main"],
+          [head.slice(0, 12), "behind"],
+        ] as const) {
+          yield* Effect.scoped(
+            Effect.gen(function* () {
+              const { updater, events, builds } = yield* updaterFor(builtHash, { branch });
+              yield* updater.checkForUpdates;
+              assert.equal(builds(), 0);
+              assert.deepEqual(events, [["update-not-available", undefined]]);
+            }),
+          );
+        }
+
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const { updater, events } = yield* updaterFor("unknown");
+            yield* updater.checkForUpdates;
+            assert.deepEqual(events[0], [
+              "update-available",
+              { version: headVersion, releaseNotes: "" },
+            ]);
+          }),
+        );
       }),
     ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, layerElectronApp))),
   );
