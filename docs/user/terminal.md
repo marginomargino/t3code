@@ -17,6 +17,14 @@ then copy. Cmd+A on macOS and Ctrl+Shift+A elsewhere select the same output.
 Ctrl+A still moves to the beginning of shell input on Windows and Linux.
 Jump to latest in the context menu returns to the current output.
 
+## Commands an agent starts
+
+An agent can start a long-running command, such as a dev server or a watcher,
+in its own terminal tab named `agent-<name>`. Press Cmd+J (Ctrl+J elsewhere) to
+watch it live; Ctrl+C stops it. The agent can read the tab's recent output and
+stop it. It needs the thread in full access outside plan mode, and the command
+keeps running after the agent's turn ends.
+
 ## fish
 
 T3 Code starts fish with `no-query-term`, avoiding startup waits for terminal
