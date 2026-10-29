@@ -94,24 +94,26 @@ edge to pin a thread. Section labels stay readable for the whole drag, and the s
 thread is over takes the accent color. Section labels also
 identify empty sections and a collapsed settled shelf.
 
-Drag within the pinned or active section to change its order. Other rows slide aside to show the
-spot where the thread will land. Drops into either section keep the position you choose. On
+On web and desktop without project folders, active threads are ordered by recent activity: a
+thread rises to the top when you send it a message or the agent finishes a turn. Drag within the
+pinned section to change its order. Other rows slide aside to show the spot where the thread will land. On
 mobile, open a thread's menu and choose **Arrange threads**. Drag a handle within or between
 **Pinned** and **Active** to reorder, pin, or unpin. Drop onto the **Settled** divider to
 settle a thread. The dragged card shows the action before you release it. Expand **Snoozed**
 or **Settled** to drag a parked thread back into either live section. Each drop saves; close the sheet to return to the thread list.
 **Move up** and **Move down** are also available in the thread menu. The server
-saves the order, so it survives a refresh and appears on your other connected devices.
+saves the order, so it survives a refresh and appears on your other connected devices; web and
+desktop use the saved active order only with project folders.
 
 On web and desktop, the list also animates section changes made with thread actions such as
 **Pin**, **Settle**, and **Snooze**. These transitions respect your system's reduced-motion
 preference. While dragging, rows follow the insertion gap without replaying a second transition
 after the drop.
 
-New threads appear above the active threads you have arranged. Settling clears a thread's active
-position, so using **Un-settle** returns it to the top. Pinning and snoozing preserve its active
-position until you move it again. Thread activity does not change the order. The settled shelf
-continues to use settlement time.
+Where the active order is arranged by hand, new threads appear above the threads you have
+arranged. Settling clears a thread's active position, so using **Un-settle** returns it to the
+top. Pinning and snoozing preserve its active position until you move it again, and thread
+activity does not change that order. The settled shelf continues to use settlement time.
 
 If dragging is unavailable for one environment, update the T3 Code server running in that
 environment. Pinned and active reordering require server support. Threads from older servers keep
@@ -145,7 +147,8 @@ or **Settings → General → Working section** on iOS and Android. Each device 
 choice.
 
 While this is on, the active list is ordered by when each thread last came back to you, so you
-cannot drag or move threads within it. Your saved order returns when you turn it off.
+cannot drag or move threads within it. On mobile, your saved order returns when you turn it off;
+web and desktop keep ordering active threads by recent activity.
 
 ### Group threads by project (beta)
 
