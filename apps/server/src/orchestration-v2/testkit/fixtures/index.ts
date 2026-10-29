@@ -1,5 +1,7 @@
 import { ProviderDriverKind } from "@t3tools/contracts";
 
+import { claudeAmbientMonitorRearmInput } from "./claude_ambient_monitor_rearm/input.ts";
+import { assertClaudeAmbientMonitorRearmOutput } from "./claude_ambient_monitor_rearm/output.ts";
 import { claudeBackgroundSubagentAfterRootInput } from "./claude_background_subagent_after_root/input.ts";
 import { assertClaudeBackgroundSubagentAfterRootOutput } from "./claude_background_subagent_after_root/output.ts";
 import { claudeBackgroundTaskAfterRootInput } from "./claude_background_task_after_root/input.ts";
@@ -286,6 +288,22 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
         ),
         modelSelection: CLAUDE_MODEL_SELECTION,
         assertOutput: assertClaudeBackgroundTaskAfterRootOutput,
+      },
+    ],
+  },
+  {
+    name: "claude_ambient_monitor_rearm",
+    buildInput: claudeAmbientMonitorRearmInput,
+    providers: [
+      {
+        driver: ProviderDriverKind.make("claudeAgent"),
+        transcriptFile: new URL(
+          "./claude_ambient_monitor_rearm/claude_transcript.ndjson",
+          import.meta.url,
+        ),
+        modelSelection: CLAUDE_MODEL_SELECTION,
+        runContinuationWorker: true,
+        assertOutput: assertClaudeAmbientMonitorRearmOutput,
       },
     ],
   },
