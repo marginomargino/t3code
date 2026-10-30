@@ -730,6 +730,49 @@ describe("ClaudeAdapterV2 device instructions", () => {
   });
 });
 
+describe("ClaudeAdapterV2 fork parent instructions", () => {
+  const append = (input: { readonly mcp: boolean; readonly fork: boolean }) =>
+    (
+      ClaudeAdapterV2.makeClaudeQueryOptions({
+        modelSelection: CLAUDE_TEST_MODEL_SELECTION,
+        nativeThreadId: "native-thread-claude-fork",
+        resume: true,
+        cwd: "/workspace",
+        ...(input.mcp
+          ? { mcpServers: { "t3-code": { type: "http" as const, url: "http://127.0.0.1/mcp" } } }
+          : {}),
+        ...(input.fork
+          ? {
+              fork: {
+                threadId: "fork-thread",
+                parent: { threadId: "parent-thread", title: "Parent work" },
+              },
+            }
+          : {}),
+        environment: {},
+      }).systemPrompt as { readonly append?: string }
+    ).append ?? "";
+
+  it("tells a fork session its own thread id and how to reach its parent", () => {
+    const text = append({ mcp: true, fork: true });
+    for (const expected of [
+      "`fork-thread`",
+      "`parent-thread`",
+      "Parent work",
+      "t3_thread_read",
+      "t3_thread_send",
+      "ListAgents",
+    ]) {
+      assert.include(text, expected);
+    }
+  });
+
+  it("leaves the fork note out for non-forks and sessions without T3 tools", () => {
+    assert.notInclude(append({ mcp: true, fork: false }), "parent-thread");
+    assert.notInclude(append({ mcp: false, fork: true }), "parent-thread");
+  });
+});
+
 describe("ClaudeAdapterV2 context usage", () => {
   it("dates cache expiry from the request start, not the response end", () => {
     const usage = ClaudeAdapterV2.claudeProviderTurnTokenUsage(

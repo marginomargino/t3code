@@ -29,6 +29,22 @@ export const T3_CODE_ORCHESTRATION_INSTRUCTIONS = `
 ${T3_CODE_ORCHESTRATION_SECTIONS.join("\n\n")}
 `;
 
+export interface T3ForkLineage {
+  readonly threadId: string;
+  readonly parent: { readonly threadId: string; readonly title: string | null };
+}
+
+/** Session-level, so it survives compaction and restarts where a first-prompt note would not. */
+export function t3ForkParentInstructions(fork: T3ForkLineage): string {
+  const parent =
+    fork.parent.title === null
+      ? `\`${fork.parent.threadId}\``
+      : `${JSON.stringify(fork.parent.title)} (\`${fork.parent.threadId}\`)`;
+  return `## This thread is a fork
+
+Your T3 thread id is \`${fork.threadId}\`. This thread is a fork of T3 thread ${parent}: it continues the parent's history from the fork point, and the parent may still be active. Reach the parent with \`t3_thread_read\` or \`t3_thread_send\` and threadId \`${fork.parent.threadId}\`, never by session names from Claude Code's ListAgents, which change between restarts.`;
+}
+
 export const T3_CODE_BROWSER_TOOL_INSTRUCTIONS = `
 
 ## T3 Code browser
