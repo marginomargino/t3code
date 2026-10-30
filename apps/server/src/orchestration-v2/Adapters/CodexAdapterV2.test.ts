@@ -289,6 +289,45 @@ describe("CodexAdapterV2 runtime policy", () => {
       assert.isDefined(withT3.additionalContext?.["t3_code_runtime"]);
     }),
   );
+
+  it.effect("tells a fork thread its own id and its parent's in developer context", () =>
+    Effect.gen(function* () {
+      const build = (input: { readonly hasT3Mcp: boolean; readonly fork: boolean }) =>
+        CodexAdapterV2.buildCodexTurnStartParams({
+          nativeThreadId: "native-fork",
+          codexInput: [{ type: "text", text: "continue" }],
+          runtimePolicy: { runtimeMode: "full-access", interactionMode: "default", cwd: null },
+          modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+          hasT3Mcp: input.hasT3Mcp,
+          ...(input.fork
+            ? {
+                fork: {
+                  threadId: "fork-thread",
+                  parent: { threadId: "parent-thread", title: "Parent work" },
+                },
+              }
+            : {}),
+        });
+      const note = (yield* build({ hasT3Mcp: true, fork: true })).additionalContext?.[
+        "t3_code_fork_parent"
+      ];
+      assert.equal(note?.kind, "application");
+      for (const expected of [
+        "`fork-thread`",
+        "`parent-thread`",
+        "Parent work",
+        "t3_thread_read",
+        "t3_thread_send",
+        "ListAgents",
+      ]) {
+        assert.include(note?.value ?? "", expected);
+      }
+      assert.isUndefined(
+        (yield* build({ hasT3Mcp: true, fork: false })).additionalContext?.["t3_code_fork_parent"],
+      );
+      assert.isUndefined((yield* build({ hasT3Mcp: false, fork: true })).additionalContext);
+    }),
+  );
 });
 
 describe("CodexAdapterV2 native protocol logging", () => {

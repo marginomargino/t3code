@@ -1423,7 +1423,7 @@ effectIt.effect.each([
 );
 
 effectIt.effect.each([{ fork: true }, { fork: false }])(
-  "tells a fork's first turn about its parent thread: $fork",
+  "hands a fork's parent to the provider session, not the Codex prompt: $fork",
   ({ fork }) =>
     Effect.gen(function* () {
       const parentThreadId = ThreadId.make("fork-parent-thread");
@@ -1436,6 +1436,14 @@ effectIt.effect.each([{ fork: true }, { fork: false }])(
       if (fork) {
         harness.setProjection({
           ...projection,
+          thread: {
+            ...projection.thread,
+            lineage: {
+              ...projection.thread.lineage,
+              parentThreadId,
+              relationshipToParent: "fork",
+            },
+          },
           contextTransfers: [
             {
               id: ContextTransferId.make("fork-transfer"),
@@ -1475,16 +1483,11 @@ effectIt.effect.each([{ fork: true }, { fork: false }])(
 
       yield* harness.start;
 
-      const text = harness.startRootRun.mock.calls[0]?.[0].message.text ?? "";
-      expect(text.startsWith("Continue")).toBe(true);
-      if (fork) {
-        expect(text).toContain(`threadId: ${parentThreadId}`);
-        expect(text).toContain("title: Parent work");
-        expect(text).toContain("t3_thread_read");
-        expect(text).toContain("t3_thread_send");
-      } else {
-        expect(text).toBe("Continue");
-      }
+      const startInput = harness.startRootRun.mock.calls[0]?.[0];
+      expect(startInput?.message.text).toBe("Continue");
+      expect(startInput?.forkParent).toEqual(
+        fork ? { threadId: parentThreadId, title: "Parent work" } : undefined,
+      );
     }),
 );
 

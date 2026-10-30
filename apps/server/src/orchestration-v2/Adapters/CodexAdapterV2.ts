@@ -110,6 +110,10 @@ import { ServerConfig } from "../../config.ts";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import { buildCodexAdditionalContext } from "../../provider/CodexDeveloperInstructions.ts";
 import {
+  t3ForkParentInstructions,
+  type T3ForkLineage,
+} from "@t3tools/provider-core/server/orchestrationInstructions";
+import {
   describeMcpElicitation,
   toMcpElicitationResponse,
 } from "../../provider/CodexMcpElicitation.ts";
@@ -782,6 +786,7 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
     readonly hasT3Mcp?: boolean;
     readonly browserToolsAvailable?: boolean;
     readonly deviceToolsAvailable?: boolean;
+    readonly fork?: T3ForkLineage;
     /** ChatGPT token sharing does not accept service tiers. */
     readonly omitServiceTier?: boolean;
     readonly appContext?: ProviderAdapter.ProviderAdapterV2TurnInput["appContext"];
@@ -825,13 +830,23 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
     );
     const t3Context =
       input.hasT3Mcp === true
-        ? buildCodexAdditionalContext(
-            { model: input.modelSelection.model, reasoningEffort: effort ?? undefined },
-            {
-              browser: input.browserToolsAvailable ?? true,
-              device: input.deviceToolsAvailable ?? false,
-            },
-          )
+        ? {
+            ...buildCodexAdditionalContext(
+              { model: input.modelSelection.model, reasoningEffort: effort ?? undefined },
+              {
+                browser: input.browserToolsAvailable ?? true,
+                device: input.deviceToolsAvailable ?? false,
+              },
+            ),
+            ...(input.fork === undefined
+              ? {}
+              : {
+                  t3_code_fork_parent: {
+                    kind: "application" as const,
+                    value: t3ForkParentInstructions(input.fork),
+                  },
+                }),
+          }
         : undefined;
     const additionalContext =
       t3Context === undefined && Object.keys(appContext).length === 0
@@ -7348,6 +7363,9 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               browserToolsAvailable: mcpSession?.browserToolsAvailable ?? true,
               deviceToolsAvailable: mcpSession?.capabilities?.has("device") ?? false,
               omitServiceTier: adapterOptions.resolveRuntime !== undefined,
+              ...(turnInput.forkParent === undefined
+                ? {}
+                : { fork: { threadId: turnInput.threadId, parent: turnInput.forkParent } }),
               ...(turnInput.appContext === undefined ? {} : { appContext: turnInput.appContext }),
               ...(configuredReasoningSummary === undefined ? {} : { configuredReasoningSummary }),
             });
