@@ -28,6 +28,7 @@ const LocalRebuildPackageMetadata = Schema.Struct({
   t3codeLocalRebuild: Schema.Struct({
     repo: Schema.String,
     branch: Schema.String,
+    releaseDir: Schema.optional(Schema.String),
   }),
 });
 type LocalRebuildPackageMetadata = typeof LocalRebuildPackageMetadata.Type;
@@ -60,7 +61,7 @@ function localRebuildVersion(baseVersion: string, commit: string): string {
 // Runs from an interactive login shell, as DesktopShellEnvironment does, so a Finder-launched app
 // still finds vp, node and git on the user's PATH.
 const BUILD_SCRIPT = `set -euo pipefail
-repo="$1" commit="$2" branch="$3" version="$4" arch="$5" out="$6" log="$7"
+repo="$1" commit="$2" branch="$3" version="$4" arch="$5" out="$6" log="$7" release_dir="$8"
 mkdir -p "$(dirname "$log")"
 exec >"$log" 2>&1
 checkout="$repo/.t3/local-rebuild"
@@ -72,7 +73,13 @@ git checkout --detach --force "$commit"
 vp i
 rm -rf "$out"
 T3CODE_LOCAL_REBUILD_REPO="$repo" T3CODE_LOCAL_REBUILD_BRANCH="$branch" T3CODE_DESKTOP_VERSION="$version" \\
+  T3CODE_LOCAL_REBUILD_RELEASE_DIR="$release_dir" \\
   node scripts/build-desktop-artifact.ts --platform mac --target zip --arch "$arch" --output-dir "$out"
+# SSH environments install this version from the mirror; a failure must not block the Mac update.
+if [ -n "$release_dir" ]; then
+  bash scripts/local-rebuild/build-linux-cli-archive.sh "$repo" "$commit" "$version" "$release_dir" ||
+    echo "Linux CLI archive build failed; SSH environments cannot install $version."
+fi
 ls "$out"/*.zip | head -n 1 >"$out/.artifact"
 `;
 
@@ -131,7 +138,7 @@ export const make = Effect.fn("LocalRebuildUpdater.make")(function* (
   const electronApp = yield* ElectronApp.ElectronApp;
   const arch = yield* HostProcess.Architecture;
   const scope = yield* Scope.Scope;
-  const { repo, branch } = metadata.t3codeLocalRebuild;
+  const { repo, branch, releaseDir } = metadata.t3codeLocalRebuild;
   const outputDir = path.join(repo, ".t3", "local-rebuild-out");
   const logPath = path.join(repo, ".t3", "local-rebuild.log");
 
@@ -241,6 +248,7 @@ export const make = Effect.fn("LocalRebuildUpdater.make")(function* (
         arch,
         outputDir,
         logPath,
+        releaseDir ?? "",
       ]));
 
   const buildCommit = Effect.fn("LocalRebuildUpdater.buildCommit")(function* (
@@ -367,16 +375,22 @@ export const make = Effect.fn("LocalRebuildUpdater.make")(function* (
   });
 });
 
+export const readMetadata = Effect.fn("LocalRebuildUpdater.readMetadata")(function* () {
+  const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  const fileSystem = yield* FileSystem.FileSystem;
+  if (!environment.isPackaged || environment.platform !== "darwin") {
+    return Option.none<LocalRebuildPackageMetadata>();
+  }
+  return yield* fileSystem
+    .readFileString(environment.path.join(environment.appRoot, "package.json"))
+    .pipe(Effect.flatMap(decodeLocalRebuildPackageMetadata), Effect.option);
+});
+
 // A packaged macOS build that carries t3codeLocalRebuild metadata rebuilds itself from that checkout.
 export const layer = Layer.effect(
   ElectronUpdater.ElectronUpdater,
   Effect.gen(function* () {
-    const environment = yield* DesktopEnvironment.DesktopEnvironment;
-    const fileSystem = yield* FileSystem.FileSystem;
-    if (!environment.isPackaged || environment.platform !== "darwin") return ElectronUpdater.make;
-    const metadata = yield* fileSystem
-      .readFileString(environment.path.join(environment.appRoot, "package.json"))
-      .pipe(Effect.flatMap(decodeLocalRebuildPackageMetadata), Effect.option);
+    const metadata = yield* readMetadata();
     return Option.isSome(metadata) ? yield* make(metadata.value) : ElectronUpdater.make;
   }),
 );
