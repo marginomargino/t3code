@@ -23,7 +23,7 @@ Add a second Claude instance in **Settings → Providers** (or **Add Claude acco
 - **Manual compaction**: Send `/compact` in chat.
 - **Idle compaction (>200k tokens)**: Configure **Settings → Providers → Advanced → Compact idle threads** (overridable per instance):
   - **When you return** (default): Shows a **Compact** chip next to Send once Claude's prompt cache expires (~1 hour on subscriptions, 5 min on API/Bedrock/Vertex). Click it to switch to **Keep** if you want full history.
-  - **Before the cache expires (beta)**: Automatically sends `/compact` shortly before the cache expires while history is still cached (falls back to **When you return** if missed).
+  - **Before the cache expires (beta)**: Automatically sends `/compact` shortly before the cache expires, but only once the thread has used at least 85% of **Auto-compact after** (or of the model's context window when unset). Coming back to a thread never compacts it in this mode.
   - **Never**: Disables idle compaction prompts.
 
 ## Steering, usage limits, and tasks
