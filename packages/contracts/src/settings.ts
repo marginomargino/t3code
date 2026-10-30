@@ -1484,6 +1484,10 @@ export const resolveIdleCompaction = (
   return override === "default" ? globalIdleCompaction(settings) : override;
 };
 
+/** Whether returning to a stale Claude thread offers compaction; "default" is the global default. */
+export const compactsOnReturn = (mode: IdleCompactionMode | "default") =>
+  mode === "onReturn" || mode === "default";
+
 export const ServerSettingsOperation = Schema.Literals([
   "normalize",
   "check-exists",

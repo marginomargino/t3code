@@ -113,6 +113,7 @@ import {
   type ProviderThreadId,
   type RunId,
   type ThreadId,
+  compactsOnReturn,
   resolveIdleCompaction,
 } from "@t3tools/contracts";
 
@@ -10272,7 +10273,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                     Effect.orElseSucceed(() => adapterOptions.settings.idleCompaction),
                   )
                 : adapterOptions.settings.idleCompaction;
-              if (idleCompaction === "off") {
+              if (!compactsOnReturn(idleCompaction)) {
                 return { behavior: "completed" as const, result: "continue" as const };
               }
               const ageMinutes =
