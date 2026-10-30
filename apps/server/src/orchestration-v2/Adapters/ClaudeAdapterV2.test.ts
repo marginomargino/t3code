@@ -750,6 +750,26 @@ describe("ClaudeAdapterV2 native protocol logging", () => {
     assert.deepEqual(logged.settingKeys, ["env", "showThinkingSummaries"]);
     assert.notInclude(JSON.stringify(logged), "secret-settings-key");
   });
+
+  it.each([
+    ["auto", ["mcp__t3-code__t3_terminal_run"]],
+    ["bypassPermissions", undefined],
+  ] as const)("in %s mode, asks before t3_terminal_run: %j", (permissionMode, ask) => {
+    const options = ClaudeAdapterV2.makeClaudeQueryOptions({
+      modelSelection: CLAUDE_TEST_MODEL_SELECTION,
+      nativeThreadId: "native-thread-claude-terminal-review",
+      resume: false,
+      cwd: "/workspace",
+      permissionMode,
+      allowedTools: [ClaudeAdapterV2.CLAUDE_T3_MCP_TOOL_WILDCARD],
+      mcpServers: { "t3-code": { type: "http", url: "http://127.0.0.1/mcp" } },
+    });
+    const settings = options.settings;
+    assert.deepEqual(
+      typeof settings === "object" ? settings?.permissions?.ask : "file",
+      ask === undefined ? undefined : [...ask],
+    );
+  });
 });
 
 describe("ClaudeAdapterV2 device instructions", () => {

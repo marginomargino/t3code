@@ -25,8 +25,9 @@ Select Text shows the visible output, where you can copy text or tap a link.
 An agent can start a long-running command, such as a dev server or a watcher,
 in its own terminal tab named `agent-<name>`. Press Cmd+J (Ctrl+J elsewhere) to
 watch it live; Ctrl+C stops it. The agent can read the tab's recent output and
-stop it. It needs the thread in full access outside plan mode, and the command
-keeps running after the agent's turn ends.
+stop it. It works in full access, and in auto mode on Claude or Codex, where
+their auto review checks each command first. Plan mode never runs it. The
+command keeps running after the agent's turn ends.
 
 ## fish
 

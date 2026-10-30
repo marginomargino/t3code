@@ -21,6 +21,7 @@ import * as NodeUtil from "node:util";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
+import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as TerminalManager from "../terminal/Manager.ts";
 import type { McpThreadInvocationScope } from "./McpInvocationContext.ts";
 
@@ -41,6 +42,8 @@ export class TerminalMcpService extends Context.Service<
     ) => Effect.Effect<TerminalMcpStopResult, OrchestratorMcpFailure>;
   }
 >()("t3/mcp/TerminalMcpService") {}
+
+const AUTO_REVIEWED_DRIVERS: ReadonlySet<string> = new Set(["claudeAgent", "codex"]);
 
 const failure = (code: OrchestratorMcpFailure["code"], message: string) =>
   new OrchestratorMcpFailure({ code, message });
@@ -66,6 +69,7 @@ export const make = Effect.gen(function* () {
   const threads = yield* ThreadManagementService.ThreadManagementService;
   const projects = yield* ProjectService.ProjectService;
   const terminals = yield* TerminalManager.TerminalManager;
+  const providers = yield* ProviderRegistry.ProviderRegistry;
   const starter = yield* ProjectSetupScriptRunner.makeTerminalCommandStarter;
   // The busy check reads session state that only changes once the terminal opens.
   const admission = yield* KeyedLock.make<string>();
@@ -97,11 +101,22 @@ export const make = Effect.gen(function* () {
       if (thread === null || thread.deletedAt !== null) {
         return yield* failure("thread_not_found", "The calling thread was not found.");
       }
-      // Terminal input skips the provider's command approvals.
-      if (thread.runtimeMode !== "full-access" || thread.interactionMode !== "default") {
+      // Terminal input skips the provider's command approvals; in auto mode only Claude and Codex
+      // still review this tool call itself (ClaudeAdapterV2 asks for it, Codex prompts per tool).
+      const reviewedInAuto =
+        thread.runtimeMode === "auto" &&
+        (yield* providers.getProviders).some(
+          (provider) =>
+            provider.instanceId === thread.providerInstanceId &&
+            AUTO_REVIEWED_DRIVERS.has(provider.driver),
+        );
+      if (
+        (thread.runtimeMode !== "full-access" && !reviewedInAuto) ||
+        thread.interactionMode !== "default"
+      ) {
         return yield* failure(
           "runtime_mode_escalation_denied",
-          "t3_terminal_run needs a thread in full-access mode outside plan mode. Use your own shell tool instead.",
+          "t3_terminal_run needs full access, or auto mode on Claude or Codex, outside plan mode. Use your own shell tool instead.",
         );
       }
       if (thread.linkOrigin !== undefined && linkOriginIsFenced(thread.linkOrigin)) {
