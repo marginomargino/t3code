@@ -1279,8 +1279,23 @@ export const layer: Layer.Layer<
         session.driver === "claudeAgent" ||
         session.providerSession.capabilities.turns.supportsNativeGoals === true;
       const goalCommand = goalDriver && parseGoalCommand(providerMessage) !== null;
+      const { lineage } = projection.thread;
+      const forkParentThreadId =
+        lineage.relationshipToParent === "fork" ? lineage.parentThreadId : null;
+      // A deleted parent must not block the fork's turn; the parent just loses its title.
+      const forkParent =
+        forkParentThreadId === null
+          ? undefined
+          : {
+              threadId: forkParentThreadId,
+              title: yield* projectionStore.getThreadRecords(forkParentThreadId, []).pipe(
+                Effect.map(({ thread }): string | null => thread.title),
+                Effect.orElseSucceed(() => null),
+              ),
+            };
+      // Codex and Claude carry the parent in session instructions; others hear once, in the fork's first prompt.
       const forkTransfer =
-        goalCommand || slashCommand || isProviderCommand(providerMessage)
+        goalDriver || slashCommand || isProviderCommand(providerMessage)
           ? undefined
           : projection.contextTransfers.find(
               (transfer) =>
@@ -1288,18 +1303,10 @@ export const layer: Layer.Layer<
                 transfer.targetThreadId === input.threadId &&
                 transfer.targetRunId === run.id,
             );
-      // A deleted parent must not block the fork's turn; the note just loses its title.
-      const forkParentTitle =
-        forkTransfer === undefined
-          ? null
-          : yield* projectionStore.getThreadRecords(forkTransfer.sourceThreadId, []).pipe(
-              Effect.map(({ thread }) => thread.title),
-              Effect.orElseSucceed(() => null),
-            );
       const forkedText =
-        forkTransfer === undefined
+        forkTransfer === undefined || forkParent === undefined
           ? messageText
-          : `${messageText}\n\n${forkParentNote(forkTransfer.sourceThreadId, forkParentTitle)}`;
+          : `${messageText}\n\n${forkParentNote(forkParent.threadId, forkParent.title)}`;
       // Part of the user text, so every way a turn starts carries it, after the user's own words.
       const userText =
         run.outputSchema === undefined || goalCommand || isProviderCommand(providerMessage)
@@ -2517,6 +2524,7 @@ export const layer: Layer.Layer<
       return runExecution.startRootRun({
         commandId: CommandId.make(`command:effect:provider-turn.start:${run.id}`),
         appThread: projection.thread,
+        ...(forkParent === undefined ? {} : { forkParent }),
         providerSessionId,
         session: deliverySession,
         run: runningRun,
