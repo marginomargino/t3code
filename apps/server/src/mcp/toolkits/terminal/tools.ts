@@ -21,7 +21,7 @@ const dependencies = [
 
 const TerminalRunTool = Tool.make("t3_terminal_run", {
   description:
-    "Run a long-lived command (dev server, watcher, `./gradlew run`) in a T3 terminal tab of THIS thread, so the user can watch it live and press Ctrl+C. Prefer it over background shell commands for anything the user should see. Runs in the thread's workspace and outlives your turn. Fails while a tab with this name is open: `t3_terminal_stop` first to restart. Full-access threads only.",
+    "Run a long-lived command (dev server, watcher, `./gradlew run`) in a T3 terminal tab of THIS thread, so the user can watch it live and press Ctrl+C. Prefer it over background shell commands for anything the user should see. Runs in the thread's workspace and outlives your turn. Fails while a tab with this name is open: `t3_terminal_stop` first to restart. Needs full access, or auto mode on Claude or Codex.",
   parameters: TerminalMcpRunInput,
   success: TerminalMcpRunResult,
   failure: OrchestratorMcpFailure,

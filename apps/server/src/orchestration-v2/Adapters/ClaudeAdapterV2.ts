@@ -2784,6 +2784,22 @@ export function makeClaudeQueryOptions(input: {
       : { plugins: pluginDirectories.map((path) => ({ type: "local" as const, path })) }),
     ...(Object.keys(extraArgs).length === 0 ? {} : { extraArgs }),
   };
+  // T3 pre-approves its MCP tools; auto mode must still judge the commands t3_terminal_run types.
+  const reviewedOptions =
+    options.permissionMode === "auto" &&
+    input.mcpServers !== undefined &&
+    typeof options.settings !== "string"
+      ? {
+          ...options,
+          settings: {
+            ...options.settings,
+            permissions: {
+              ...options.settings?.permissions,
+              ask: [...(options.settings?.permissions?.ask ?? []), CLAUDE_T3_TERMINAL_RUN_TOOL],
+            },
+          },
+        }
+      : options;
   const additionalDirectories = [
     ...(input.cwd === null ? [] : [input.cwd]),
     ...(input.workspace?.extraRoots ?? []),
@@ -2791,7 +2807,9 @@ export function makeClaudeQueryOptions(input: {
     ...claudeLaunchArgDirectories(input.settings?.launchArgs),
   ];
   const withDirectories =
-    additionalDirectories.length === 0 ? options : { ...options, additionalDirectories };
+    additionalDirectories.length === 0
+      ? reviewedOptions
+      : { ...reviewedOptions, additionalDirectories };
   return input.cwd === null ? withDirectories : { ...withDirectories, cwd: input.cwd };
 }
 
@@ -2877,6 +2895,7 @@ export const readClaudeLaunchArgSettings = Effect.fn("ClaudeAdapterV2.readLaunch
 );
 
 export const CLAUDE_T3_MCP_TOOL_WILDCARD = "mcp__t3-code__*";
+const CLAUDE_T3_TERMINAL_RUN_TOOL = "mcp__t3-code__t3_terminal_run";
 
 // Keep in sync with OrchestratorToolkit Tool.Readonly annotations; ClaudeAdapterV2.test.ts checks this.
 export const CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS: ReadonlyArray<string> = [

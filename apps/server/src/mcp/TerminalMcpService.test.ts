@@ -4,8 +4,10 @@ import {
   type OrchestrationV2ThreadShell,
   type Project,
   ProjectId,
+  ProviderDriverKind,
   ProviderInstanceId,
   type ProviderInteractionMode,
+  type ServerProvider,
   type RuntimeMode,
   type TerminalCloseInput,
   type TerminalEvent,
@@ -23,12 +25,14 @@ import { TestClock } from "effect/testing";
 
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
+import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as TerminalManager from "../terminal/Manager.ts";
 import type * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as TerminalMcpService from "./TerminalMcpService.ts";
 
 const threadId = ThreadId.make("thread-terminal-test");
 const projectId = ProjectId.make("project-terminal-test");
+const providerInstanceId = ProviderInstanceId.make("instance-terminal-test");
 
 const scope: McpInvocationContext.McpThreadInvocationScope = {
   environmentId: EnvironmentId.make("environment-terminal-test"),
@@ -49,6 +53,7 @@ const makeHarness = Effect.fn(function* (
   options: {
     readonly runtimeMode?: RuntimeMode;
     readonly interactionMode?: ProviderInteractionMode;
+    readonly driver?: string;
     readonly worktreePath?: string | null;
     readonly openGate?: Deferred.Deferred<void>;
   } = {},
@@ -105,9 +110,18 @@ const makeHarness = Effect.fn(function* (
               projectId,
               runtimeMode: options.runtimeMode ?? "full-access",
               interactionMode: options.interactionMode ?? "default",
+              providerInstanceId,
               worktreePath: options.worktreePath ?? null,
               deletedAt: null,
             } as OrchestrationV2ThreadShell),
+        }),
+        Layer.mock(ProviderRegistry.ProviderRegistry)({
+          getProviders: Effect.succeed([
+            {
+              instanceId: providerInstanceId,
+              driver: ProviderDriverKind.make(options.driver ?? "claudeAgent"),
+            } as ServerProvider,
+          ]),
         }),
         Layer.mock(ProjectService.ProjectService)({
           getById: () => Effect.succeedSome({ workspaceRoot: "/repo" } as Project),
@@ -153,15 +167,20 @@ describe("TerminalMcpService", () => {
   );
 
   it.effect.each([
-    ["approval-required", "default"],
-    ["auto", "default"],
-    ["full-access", "plan"],
-  ] as const)("refuses to run in %s/%s mode", ([runtimeMode, interactionMode]) =>
+    ["approval-required", "default", "claudeAgent", false],
+    ["auto", "default", "claudeAgent", true],
+    ["auto", "default", "codex", true],
+    ["auto", "default", "cursor", false],
+    ["full-access", "plan", "claudeAgent", false],
+  ] as const)("in %s/%s mode on %s, runs: %s", ([runtimeMode, interactionMode, driver, runs]) =>
     Effect.gen(function* () {
-      const { service, opened } = yield* makeHarness({ runtimeMode, interactionMode });
-      const error = yield* Effect.flip(service.run(scope, { name: "server", command: "x" }));
-      expect(error.code).toBe("runtime_mode_escalation_denied");
-      expect(yield* Queue.size(opened)).toBe(0);
+      const { service, opened } = yield* makeHarness({ runtimeMode, interactionMode, driver });
+      const result = yield* Effect.result(service.run(scope, { name: "server", command: "x" }));
+      expect(result._tag === "Success").toBe(runs);
+      if (result._tag === "Failure") {
+        expect(result.failure.code).toBe("runtime_mode_escalation_denied");
+      }
+      expect(yield* Queue.size(opened)).toBe(runs ? 1 : 0);
     }),
   );
 
