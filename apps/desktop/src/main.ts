@@ -13,9 +13,11 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as SecureRandom from "effect/crypto/SecureRandom";
+import * as NodeURL from "node:url";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 
 import * as Electron from "electron";
 
@@ -113,11 +115,21 @@ const layerDesktopSshEnvironment = Layer.unwrap(
   Effect.gen(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     const env = yield* HostProcess.Environment;
+    const localRebuild = yield* LocalRebuildUpdater.readMetadata();
+    const localReleaseDir = localRebuild.pipe(
+      Option.flatMapNullishOr((metadata) => metadata.t3codeLocalRebuild.releaseDir),
+    );
     return DesktopSshEnvironment.layer({
       // Per connect: the login shell's environment is installed after this layer is built.
-      resolveCliRunner: Effect.sync(() =>
-        DesktopSshEnvironment.resolveDesktopSshCliRunner(environment, env),
-      ),
+      resolveCliRunner: Effect.sync(() => {
+        const runner = DesktopSshEnvironment.resolveDesktopSshCliRunner(environment, env);
+        // Local rebuilds are not on GitHub releases; their archives sit in a host directory the remote mounts.
+        return runner.archiveVersion != null &&
+          runner.releaseBaseUrl == null &&
+          Option.isSome(localReleaseDir)
+          ? { ...runner, releaseBaseUrl: NodeURL.pathToFileURL(localReleaseDir.value).href }
+          : runner;
+      }),
       resolveLauncherId: yield* Effect.cached(
         DesktopSshEnvironment.readOrCreateLauncherId(
           environment.path.join(environment.stateDir, "ssh-launcher-id"),
