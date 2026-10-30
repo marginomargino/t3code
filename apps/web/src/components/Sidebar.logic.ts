@@ -621,15 +621,17 @@ export function resolveSidebarRowThreadId(
 }
 
 /**
- * Nested mode places each fork right after its parent, recursively. A fork
- * whose parent sits in another list keeps its place; a cycle breaks at its
- * earliest member, so every thread is emitted exactly once.
+ * Nested mode places forks right after their parent; a sorted section lifts each
+ * (sub)tree to its highest member, a hand-ordered one keeps roots so drops land
+ * where shown. Forks of parents in other lists keep their place; a cycle breaks
+ * at its earliest member, so every thread is emitted exactly once.
  */
 export function nestSidebarSectionForks<
   T extends Pick<SidebarThreadSummary, "id" | "environmentId" | "lineage">,
 >(
   threads: readonly T[],
   mode: SidebarForkDisplay,
+  handOrdered = false,
 ): Array<{ readonly thread: T; readonly depth: number }> {
   if (mode === "flat") return threads.map((thread) => ({ thread, depth: 0 }));
   const keyOf = (environmentId: EnvironmentId, id: ThreadId) => `${environmentId}\0${id}`;
@@ -658,14 +660,18 @@ export function nestSidebarSectionForks<
   parentIndex.forEach((parent, index) => {
     if (parent !== null && !isRoot[index]) children[parent]!.push(index);
   });
+  const rank: number[] = [];
+  const rankOf = (index: number): number =>
+    handOrdered ? index : (rank[index] ??= Math.min(index, ...children[index]!.map(rankOf)));
+  const byRank = (left: number, right: number) => rankOf(left) - rankOf(right);
   const ordered: Array<{ readonly thread: T; readonly depth: number }> = [];
   const emit = (index: number, depth: number) => {
     ordered.push({ thread: threads[index]!, depth });
-    for (const child of children[index]!) emit(child, depth + 1);
+    for (const child of children[index]!.toSorted(byRank)) emit(child, depth + 1);
   };
-  isRoot.forEach((root, index) => {
-    if (root) emit(index, 0);
-  });
+  for (const root of threads.flatMap((_, index) => (isRoot[index] ? [index] : [])).sort(byRank)) {
+    emit(root, 0);
+  }
   return ordered;
 }
 
