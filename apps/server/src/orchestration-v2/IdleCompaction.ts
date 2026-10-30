@@ -7,6 +7,9 @@ import * as DateTime from "effect/DateTime";
 // that a cold re-read is cheap, so compacting mostly loses context for little
 // saving.
 const MIN_CONTEXT_TOKENS = COMPACTION_SUGGESTION_MIN_TOKENS;
+// Only compact a context that is nearly full, so an idle spell does not trade
+// detail for a cache saving while plenty of room is left.
+const MIN_CONTEXT_FILL = 0.85;
 // Start this long before the cache expires: enough for the session to resume
 // and send the compaction while the cache is still warm.
 const LEAD_MS = 2 * 60_000;
@@ -96,7 +99,14 @@ export function idleCompactionWindow(
     .filter((turn) => turn.providerThreadId === providerThread.id && turn.tokenUsage !== undefined)
     .map((turn) => turn.tokenUsage!)
     .toSorted((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
-  if ((usages[0]?.usedTokens ?? 0) < MIN_CONTEXT_TOKENS) return null;
+  const usedTokens = usages[0]?.usedTokens ?? 0;
+  const contextWindow = usages[0]?.autoCompactThreshold ?? usages[0]?.maxTokens;
+  if (
+    usedTokens < MIN_CONTEXT_TOKENS ||
+    !contextWindow ||
+    usedTokens < contextWindow * MIN_CONTEXT_FILL
+  )
+    return null;
   // A request served fully from cache creates no cache entry and reports no
   // TTL, but it still refreshes the cache. Treat it as unknown and skip.
   const expiresAt = usages[0]?.promptCacheExpiresAt;
