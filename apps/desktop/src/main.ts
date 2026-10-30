@@ -12,6 +12,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 // @effect-diagnostics-next-line nodeBuiltinImport:off - Version output must flush before Electron exits, without acquiring the runtime.
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
+import * as NodeURL from "node:url";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -109,6 +110,7 @@ const layerDesktopEnvironment = Layer.unwrap(
 
 const resolveDesktopSshCliRunner = (
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
+  localReleaseDir: Option.Option<string>,
 ): RemoteT3RunnerOptions => {
   const devRemoteEntryPath = Option.getOrUndefined(environment.devRemoteT3ServerEntryPath);
   if (environment.isDevelopment && devRemoteEntryPath !== undefined) {
@@ -117,14 +119,25 @@ const resolveDesktopSshCliRunner = (
       nodeEngineRange: serverPackageJson.engines.node,
     };
   }
-  return { archiveVersion: environment.appVersion };
+  // Local rebuilds are not on GitHub releases; their archives sit in a host directory the remote mounts.
+  return Option.match(localReleaseDir, {
+    onNone: () => ({ archiveVersion: environment.appVersion }),
+    onSome: (releaseDir) => ({
+      archiveVersion: environment.appVersion,
+      releaseBaseUrl: NodeURL.pathToFileURL(releaseDir).href,
+    }),
+  });
 };
 
 const layerDesktopSshEnvironment = Layer.unwrap(
   Effect.gen(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
+    const localRebuild = yield* LocalRebuildUpdater.readMetadata();
+    const localReleaseDir = localRebuild.pipe(
+      Option.flatMapNullishOr((metadata) => metadata.t3codeLocalRebuild.releaseDir),
+    );
     return DesktopSshEnvironment.layer({
-      resolveCliRunner: Effect.succeed(resolveDesktopSshCliRunner(environment)),
+      resolveCliRunner: Effect.succeed(resolveDesktopSshCliRunner(environment, localReleaseDir)),
     });
   }),
 );

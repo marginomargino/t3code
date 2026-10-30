@@ -958,7 +958,11 @@ interface StagePackageJson {
   readonly buildVersion: string;
   readonly t3codeCommitHash: string;
   readonly t3codeWebAuthn?: MacWebAuthnEntitlements;
-  readonly t3codeLocalRebuild?: { readonly repo: string; readonly branch: string };
+  readonly t3codeLocalRebuild?: {
+    readonly repo: string;
+    readonly branch: string;
+    readonly releaseDir?: string;
+  };
   readonly private: true;
   readonly packageManager: string;
   readonly description: string;
@@ -3642,6 +3646,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   const localRebuild = yield* Config.all({
     repo: Config.String("T3CODE_LOCAL_REBUILD_REPO").pipe(Config.option),
     branch: Config.String("T3CODE_LOCAL_REBUILD_BRANCH").pipe(Config.withDefault("fork/main")),
+    releaseDir: Config.NonEmptyString("T3CODE_LOCAL_REBUILD_RELEASE_DIR").pipe(Config.option),
   });
   const mkdir = options.keepStage ? fs.makeTempDirectory : fs.makeTempDirectoryScoped;
   const stageRoot = yield* mkdir({
@@ -3871,6 +3876,9 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
           t3codeLocalRebuild: {
             repo: path.resolve(localRebuild.repo.value),
             branch: localRebuild.branch,
+            ...(Option.isSome(localRebuild.releaseDir)
+              ? { releaseDir: path.resolve(localRebuild.releaseDir.value) }
+              : {}),
           },
         }
       : {}),
