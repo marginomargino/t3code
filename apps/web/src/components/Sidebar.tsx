@@ -1380,15 +1380,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const hasForkRows = [...threadByKey.values()].some(
     (thread) => thread.lineage.relationshipToParent === "fork",
   );
-  let shellTitleByKey: Map<string, string> | null = null;
+  const shellTitleByKey = hasForkRows
+    ? new Map(threads.map((shell) => [threadShellKey(shell), shell.title]))
+    : null;
   // Older settled parents are not streamed, so a fork can outlive its parent's shell here.
   const resolveForkParentLabel = (thread: EnvironmentThreadShell): string | null => {
     const parentId =
       thread.lineage.relationshipToParent === "fork" ? thread.lineage.parentThreadId : null;
     if (parentId === null) return null;
-    shellTitleByKey ??= new Map(threads.map((shell) => [threadShellKey(shell), shell.title]));
     return (
-      shellTitleByKey.get(threadShellKey({ environmentId: thread.environmentId, id: parentId })) ??
+      shellTitleByKey?.get(threadShellKey({ environmentId: thread.environmentId, id: parentId })) ??
       "parent thread"
     );
   };
