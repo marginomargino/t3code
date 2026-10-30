@@ -633,6 +633,7 @@ export type RunExecutionServiceV2Error = typeof RunExecutionServiceV2Error.Type;
 export interface RunExecutionServiceV2StartRootRunInput {
   readonly commandId: CommandId;
   readonly appThread: OrchestrationV2AppThread;
+  readonly forkParent?: ProviderAdapter.ProviderAdapterV2TurnInput["forkParent"];
   readonly providerSessionId: ProviderSessionId;
   readonly session: ProviderAdapter.ProviderAdapterV2SessionRuntime;
   readonly run: OrchestrationV2Run;
@@ -2206,6 +2207,7 @@ export const layer: Layer.Layer<
         );
         const turnInput = {
           appThread: input.appThread,
+          ...(input.forkParent === undefined ? {} : { forkParent: input.forkParent }),
           threadId: input.run.threadId,
           runId: input.run.id,
           runOrdinal: input.run.ordinal,
