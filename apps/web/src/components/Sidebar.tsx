@@ -556,7 +556,9 @@ function useSidebarThreads(input: {
     visibleWorkingThreads,
     visibleSnoozedThreads,
     renderedSettledThreads,
-  ].flatMap((list) => nestSidebarSectionForks(list, forkDisplay).map(({ thread }) => thread));
+  ].flatMap((list) =>
+    nestSidebarSectionForks(list, forkDisplay, list === pinnedThreads).map(({ thread }) => thread),
+  );
   const sectionByThreadKey = new Map<string, SidebarSection>();
   for (const [list, section] of [
     [pinnedThreads, "pinned"],
@@ -1976,7 +1978,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       list: readonly EnvironmentThreadShell[],
       section: SidebarSection,
     ): SidebarListItem[] =>
-      nestSidebarSectionForks(list, forkDisplay).map(({ thread, depth }) => {
+      nestSidebarSectionForks(list, forkDisplay, section === "pinned").map(({ thread, depth }) => {
         const key = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
         return { kind: "thread", key, section, depth };
       });

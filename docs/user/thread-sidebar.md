@@ -232,7 +232,8 @@ instead.
 A fork shows **↳** and its parent's title under its own; click it to open the parent.
 To nest forks below their parent when both are in the same section, use the tree button in
 the sidebar header (shown while a fork is listed) or **Settings → General → Show forks under
-parent**.
+parent**. Outside the pinned section, a nested tree sits where its highest thread would, so when
+the list is ordered by activity, activity in a fork lifts the whole tree.
 
 When you merge a fork back, the parent's agent is told that the fork exists and that it can
 read the fork or ask it questions, instead of receiving a copy of its contents.

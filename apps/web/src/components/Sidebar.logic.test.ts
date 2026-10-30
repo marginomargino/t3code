@@ -212,6 +212,36 @@ describe("nestSidebarSectionForks", () => {
     ]);
   });
 
+  it("places each fork tree and subtree at its most recent member", () => {
+    const threads = [
+      forkOf("deep", "second"),
+      plain("b"),
+      forkOf("fresh", "c"),
+      plain("a"),
+      forkOf("first", "a"),
+      forkOf("second", "a"),
+      plain("c"),
+    ];
+    expect(shape(nestSidebarSectionForks(threads, "nested"))).toEqual([
+      "a@0",
+      "second@1",
+      "deep@2",
+      "first@1",
+      "b@0",
+      "c@0",
+      "fresh@1",
+    ]);
+    expect(shape(nestSidebarSectionForks(threads, "nested", true))).toEqual([
+      "b@0",
+      "a@0",
+      "first@1",
+      "second@1",
+      "deep@2",
+      "c@0",
+      "fresh@1",
+    ]);
+  });
+
   it("keeps a fork top-level when its parent is in another section or absent", () => {
     const threads = [plain("a"), forkOf("orphan", "elsewhere"), plain("b")];
     expect(shape(nestSidebarSectionForks(threads, "nested"))).toEqual(["a@0", "orphan@0", "b@0"]);
