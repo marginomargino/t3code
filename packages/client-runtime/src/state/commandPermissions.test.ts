@@ -17,7 +17,6 @@ import {
   AuthTerminalOperateScope,
   CommandId,
   MessageId,
-  ORCHESTRATION_V2_WS_METHODS,
   ThreadId,
   EnvironmentId,
   ORCHESTRATION_V2_WS_METHODS,
