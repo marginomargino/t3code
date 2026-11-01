@@ -1274,7 +1274,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       ? connectedEnvironmentIds
       : connectedEnvironmentIds.filter((environmentId) => environmentId === environmentScopeId);
   const threadSearch = useThreadSearch(
-    connectedEnvironmentIds,
+    searchEnvironmentIds,
     threadSearchQuery,
     scopedProjectGroups.length === 0
       ? {}
