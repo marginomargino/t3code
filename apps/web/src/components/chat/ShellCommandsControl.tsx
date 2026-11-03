@@ -35,6 +35,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   CommandOutputPanel,
   CommandOutputText,
+  ShellOutputSizeToggle,
   useCommandOutputStreaming,
 } from "./CommandOutputPanel";
 import { SHELL_COMMAND_TINT, ShellCommandText } from "./ShellCommandText";
@@ -209,6 +210,7 @@ function ShellCommandRow(props: {
   const stopCommand = useAtomCommand(threadEnvironment.stopUserShellCommand);
   const [stopping, setStopping] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [tall, setTall] = useState(false);
   const outputId = useId();
   const outcomeLine = userShellCommandOutcomeLine(presentation);
   const modeNote = userShellCommandModeNote(item);
@@ -282,6 +284,9 @@ function ShellCommandRow(props: {
           ) : (
             <span className="flex min-w-0 flex-1 items-center">{status}</span>
           )}
+          {expanded && hasOutput ? (
+            <ShellOutputSizeToggle tall={tall} onToggle={() => setTall((value) => !value)} />
+          ) : null}
           {active && canStop && item.awaitsWorkspace !== true ? (
             <Tooltip>
               <TooltipTrigger
@@ -316,9 +321,10 @@ function ShellCommandRow(props: {
                 threadId={item.threadId}
                 itemId={item.id}
                 variant="shell"
+                tall={tall}
               />
             ) : item.output ? (
-              <CommandOutputText text={item.output} />
+              <CommandOutputText text={item.output} tall={tall} />
             ) : (
               <div className="text-muted-foreground italic">No output.</div>
             )}

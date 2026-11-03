@@ -1,6 +1,7 @@
 import type { CommandOutputView } from "@t3tools/client-runtime/state/command-output";
 import type { EnvironmentId, ThreadId, TurnItemId } from "@t3tools/contracts";
 import { TERMINAL_PALETTES, terminalOutputSpans } from "@t3tools/shared/terminalOutput";
+import { Maximize2Icon, Minimize2Icon } from "lucide-react";
 import { useLayoutEffect, useRef } from "react";
 
 import { useTheme } from "../../hooks/useTheme";
@@ -9,7 +10,9 @@ import { orchestrationEnvironment } from "../../state/orchestration";
 import { useEnvironmentQuery } from "../../state/query";
 import { useInitialOutputReady, type TurnItemSource } from "./timelineRowContext";
 import { cn } from "~/lib/utils";
+import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 const FOLLOW_SLACK_PX = 8;
 
@@ -32,6 +35,8 @@ export function CommandOutputPanel(props: {
   readonly itemId: TurnItemId;
   /** A person's `! cmd`: a spinner while loading, and the same 20-line cap as its bubble. */
   readonly variant?: "default" | "shell";
+  /** A `! cmd` the person expanded: most of the viewport instead of 20 lines. */
+  readonly tall?: boolean;
   readonly source?: TurnItemSource["commandOutput"] | undefined;
 }) {
   const shell = props.variant === "shell";
@@ -72,7 +77,10 @@ export function CommandOutputPanel(props: {
         followRef.current =
           element.scrollHeight - element.scrollTop - element.clientHeight <= FOLLOW_SLACK_PX;
       }}
-      className={cn("overflow-auto text-muted-foreground", shell ? "max-h-[20lh]" : "max-h-80")}
+      className={cn(
+        "overflow-auto text-muted-foreground",
+        shell ? shellOutputHeight(props.tall) : "max-h-80",
+      )}
     >
       {data?.output.truncated ? <div className="italic">Earlier output not shown</div> : null}
       <TerminalOutputSpans text={text} theme={resolvedTheme} />
@@ -99,11 +107,43 @@ function TerminalOutputSpans(props: {
 }
 
 /** A `! cmd`'s output the client already holds, colored like the live panel. */
-export function CommandOutputText(props: { readonly text: string }) {
+export function CommandOutputText(props: { readonly text: string; readonly tall?: boolean }) {
   const { resolvedTheme } = useTheme();
   return (
-    <div className="max-h-[20lh] overflow-auto text-muted-foreground">
+    <div className={cn("overflow-auto text-muted-foreground", shellOutputHeight(props.tall))}>
       <TerminalOutputSpans text={props.text} theme={resolvedTheme} />
     </div>
+  );
+}
+
+function shellOutputHeight(tall: boolean | undefined): string {
+  // Leaves room for the header, the composer and the command line above the output.
+  return tall ? "max-h-[max(20lh,calc(100dvh-22rem))]" : "max-h-[20lh]";
+}
+
+/** Switches a `! cmd`'s output between its 20-line box and most of the viewport. */
+export function ShellOutputSizeToggle(props: {
+  readonly tall: boolean;
+  readonly onToggle: () => void;
+}) {
+  const label = props.tall ? "Shrink output" : "Expand output";
+  const Icon = props.tall ? Minimize2Icon : Maximize2Icon;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label={label}
+            aria-pressed={props.tall}
+            onClick={props.onToggle}
+          />
+        }
+      >
+        <Icon aria-hidden className="size-3" />
+      </TooltipTrigger>
+      <TooltipPopup>{label}</TooltipPopup>
+    </Tooltip>
   );
 }

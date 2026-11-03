@@ -23,7 +23,11 @@ import {
   userShellCommandPresentation,
   userShellCommandStatusText,
 } from "@t3tools/client-runtime/user-shell-command";
-import { CommandOutputText, useCommandOutputStreaming } from "./CommandOutputPanel";
+import {
+  CommandOutputText,
+  ShellOutputSizeToggle,
+  useCommandOutputStreaming,
+} from "./CommandOutputPanel";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { Spinner } from "../ui/spinner";
 import { SHELL_COMMAND_TINT, ShellCommandText } from "./ShellCommandText";
@@ -492,6 +496,7 @@ function ShellCommandMessageRow({ row }: { row: Extract<TimelineRow, { kind: "me
     setWantsOutput(open);
   };
   const outputPanelId = useId();
+  const [tallOutput, setTallOutput] = useState(false);
   // The thread omits command output, so it loads before opening: one resize, not one for a
   // loading state and another for the output.
   const fetchedOutput = useEnvironmentQuery(
@@ -594,17 +599,22 @@ function ShellCommandMessageRow({ row }: { row: Extract<TimelineRow, { kind: "me
             className="relative mt-2 max-w-full min-w-0 overflow-hidden rounded-lg bg-background/60 p-2 font-mono text-xs whitespace-pre"
           >
             {copyableOutput ? (
-              <MessageCopyButton
-                text={outputText}
-                label="Copy output"
-                size="icon-xs"
-                variant="ghost"
-                className="absolute end-1 top-1"
-              />
+              <div className="absolute end-1 top-1 flex flex-col">
+                <MessageCopyButton
+                  text={outputText}
+                  label="Copy output"
+                  size="icon-xs"
+                  variant="ghost"
+                />
+                <ShellOutputSizeToggle
+                  tall={tallOutput}
+                  onToggle={() => setTallOutput((value) => !value)}
+                />
+              </div>
             ) : null}
             <div className={cn(copyableOutput && "pe-7")}>
               {outputText.length > 0 ? (
-                <CommandOutputText text={outputText} />
+                <CommandOutputText text={outputText} tall={tallOutput} />
               ) : (
                 <div className="text-muted-foreground italic">
                   {fetchedOutput.error === null
