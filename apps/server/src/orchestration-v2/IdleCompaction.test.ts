@@ -38,7 +38,12 @@ const providerThreadId = ProviderThreadId.make("provider-thread");
 const modelSelection = { instanceId, model: "claude-opus-5-5" };
 
 function records(
-  usage: { readonly usedTokens?: number; readonly cacheExpiresInMs?: number } = {},
+  usage: {
+    readonly usedTokens?: number;
+    readonly maxTokens?: number | null;
+    readonly autoCompactThreshold?: number;
+    readonly cacheExpiresInMs?: number;
+  } = {},
 ): { -readonly [Key in keyof IdleCompactionRecords]: IdleCompactionRecords[Key] } {
   const messageId = MessageId.make("message-1");
   const nodeId = NodeId.make("root-node");
@@ -133,7 +138,11 @@ function records(
         startedAt: at(-MINUTE_MS),
         completedAt: at(),
         tokenUsage: {
-          usedTokens: usage.usedTokens ?? 250_000,
+          usedTokens: usage.usedTokens ?? 900_000,
+          maxTokens: usage.maxTokens === undefined ? 1_000_000 : usage.maxTokens,
+          ...(usage.autoCompactThreshold === undefined
+            ? {}
+            : { autoCompactThreshold: usage.autoCompactThreshold }),
           ...(usage.cacheExpiresInMs === undefined
             ? {}
             : { promptCacheExpiresAt: DateTime.formatIso(at(usage.cacheExpiresInMs)) }),
@@ -173,6 +182,24 @@ describe("idleCompactionWindow", () => {
       lineage: { ...sideChat.thread.lineage, relationshipToParent: "fork", sideChat: true },
     };
     expect(idleCompactionWindow(sideChat, NOW_MS)).toBeNull();
+  });
+
+  it.each([
+    { usedTokens: 850_000, maxTokens: 1_000_000, compacts: true },
+    { usedTokens: 849_999, maxTokens: 1_000_000, compacts: false },
+    { usedTokens: 199_000, maxTokens: 200_000, compacts: false },
+    { usedTokens: 200_000, maxTokens: 200_000, compacts: true },
+    { usedTokens: 300_000, maxTokens: null, compacts: false },
+    { usedTokens: 300_000, maxTokens: 1_000_000, autoCompactThreshold: 350_000, compacts: true },
+    { usedTokens: 290_000, maxTokens: 1_000_000, autoCompactThreshold: 350_000, compacts: false },
+  ])("compacts only a nearly full context: %o", ({ compacts, ...usage }) => {
+    const window = idleCompactionWindow(
+      records({ ...usage, cacheExpiresInMs: 60 * MINUTE_MS }),
+      NOW_MS,
+    );
+    expect(window).toEqual(
+      compacts ? { runId, startMs: NOW_MS + 58 * MINUTE_MS, endMs: NOW_MS + 60 * MINUTE_MS } : null,
+    );
   });
 });
 
