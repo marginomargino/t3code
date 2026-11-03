@@ -240,9 +240,10 @@ export const layer = McpToolAccess.toLayer(EnvironmentToolkit, {
         yield* check;
         const input = yield* decodeOrInvalid(ServerUpsertKeybindingInput, rule);
         const keybindings = yield* Keybindings.Keybindings;
-        return yield* keybindings
-          .upsertKeybindingRule(input)
-          .pipe(Effect.mapError((error) => rejected(error)));
+        return yield* keybindings.upsertKeybindingRule(input).pipe(
+          Effect.map((state) => state.keybindings),
+          Effect.mapError((error) => rejected(error)),
+        );
       }),
     ),
   ),
@@ -252,9 +253,10 @@ export const layer = McpToolAccess.toLayer(EnvironmentToolkit, {
         yield* check;
         const input = yield* decodeOrInvalid(ServerRemoveKeybindingInput, rule);
         const keybindings = yield* Keybindings.Keybindings;
-        return yield* keybindings
-          .removeKeybindingRule(input)
-          .pipe(Effect.mapError((error) => rejected(error)));
+        return yield* keybindings.removeKeybindingRule(input).pipe(
+          Effect.map((state) => state.keybindings),
+          Effect.mapError((error) => rejected(error)),
+        );
       }),
     ),
   ),
