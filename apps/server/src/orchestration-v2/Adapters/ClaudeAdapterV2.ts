@@ -2997,8 +2997,19 @@ function claudeTaskTypeFromSdkMessage(message: SDKMessage): string | null {
   return typeof taskType === "string" ? taskType : null;
 }
 
+// Live-update watchers (Artifact publish auto-arms one) are not activity: the CLI stops and re-arms
+// them on its own, so they get no item, roster entry, or wake.
+const CLAUDE_WATCHER_TASK_TYPE = "monitor_ws";
+
+function isClaudeWatcherTask(message: SDKMessage): boolean {
+  return claudeTaskTypeFromSdkMessage(message) === CLAUDE_WATCHER_TASK_TYPE;
+}
+
 function isClaudeNonSubagentTask(message: SDKMessage): boolean {
-  return isClaudeOpaqueBackgroundTaskType(claudeTaskTypeFromSdkMessage(message));
+  return (
+    isClaudeWatcherTask(message) ||
+    isClaudeOpaqueBackgroundTaskType(claudeTaskTypeFromSdkMessage(message))
+  );
 }
 
 function isClaudeBackgroundTasksChangedMessage(message: SDKMessage): boolean {
@@ -8295,7 +8306,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             yield* replacePendingBackgroundTasks(input.nativeThreadId, nextTasks);
             rosterChanged = true;
           } else if (message.type === "system" && message.subtype === "task_started") {
-            if (!isClaudeNonSubagentTask(message) || message.is_backgrounded === false) {
+            if (
+              !isClaudeNonSubagentTask(message) ||
+              isClaudeWatcherTask(message) ||
+              message.is_backgrounded === false
+            ) {
               return false;
             }
             yield* upsertPendingBackgroundTask(
@@ -11915,7 +11930,9 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
     return yield* makeClaudeAdapterV2({
       instanceId,
       settings: { ...config, enabled, binaryPath },
-      environment: claudeEnvironment,
+      // Claude Code leaves its Artifact tools out of SDK sessions unless this is set, while a
+      // terminal session has them. An explicit value on the instance, including 0, still wins.
+      environment: { CLAUDE_CODE_ARTIFACT: "1", ...claudeEnvironment },
       attachmentsDir: serverConfig.attachmentsDir,
       fileSystem,
       path,
