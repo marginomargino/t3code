@@ -19,6 +19,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
+import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
 import * as ClientSettingsRegistry from "../../../clientSettings/ClientSettingsRegistry.ts";
@@ -33,6 +34,8 @@ import * as McpToolAccess from "../../McpToolAccess.ts";
 import { liveThreadShell } from "../../McpToolAccess.testkit.ts";
 import * as EnvironmentHandlers from "./handlers.ts";
 import { EnvironmentToolkit } from "./tools.ts";
+
+const encodeProviderInstanceMutation = Schema.encodeEffect(ProviderInstanceMutation);
 
 const environmentId = EnvironmentId.make("environment:preferences");
 const threadId = ThreadId.make("thread:preferences");
@@ -172,7 +175,9 @@ const settingsHarness = Effect.fn(function* (initial: ServerSettings) {
         Layer.mock(Keybindings.Keybindings)({
           getSnapshot: Effect.succeed({ keybindings: [], issues: [] }),
           upsertKeybindingRule: (rule) =>
-            Ref.update(upserts, (all) => [...all, rule.command]).pipe(Effect.as([])),
+            Ref.update(upserts, (all) => [...all, rule.command]).pipe(
+              Effect.as({ keybindings: [], issues: [] }),
+            ),
         }),
         Layer.mock(SecretRequests.SecretRequests)({
           consume: ({ ref, projectId }) =>
@@ -200,14 +205,24 @@ const settingsHarness = Effect.fn(function* (initial: ServerSettings) {
       .pipe(Stream.unwrap, Stream.runCollect);
     return results.at(-1)?.encodedResult;
   }).pipe(Effect.provide(layer));
-  const update = (params: {
+  const update = ({
+    providerInstanceMutation,
+    ...params
+  }: {
     readonly patch?: Readonly<Record<string, unknown>>;
-    readonly providerInstanceMutation?: typeof ProviderInstanceMutation.Encoded;
+    readonly providerInstanceMutation?: ProviderInstanceMutation;
   }) =>
     Effect.gen(function* () {
       const toolkit = yield* EnvironmentToolkit;
+      const encodedMutation =
+        providerInstanceMutation === undefined
+          ? undefined
+          : yield* encodeProviderInstanceMutation(providerInstanceMutation);
       const results = yield* toolkit
-        .handle("t3_settings_update", params)
+        .handle("t3_settings_update", {
+          ...params,
+          ...(encodedMutation === undefined ? {} : { providerInstanceMutation: encodedMutation }),
+        })
         .pipe(Stream.unwrap, Stream.runCollect);
       return results.at(-1)?.encodedResult;
     }).pipe(Effect.provide(layer));
