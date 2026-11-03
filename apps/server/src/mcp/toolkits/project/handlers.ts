@@ -15,6 +15,7 @@ import { OrchestratorRuntimeModeAboveCeilingError } from "../../../orchestration
 import * as ThreadLaunch from "../../../orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadMessageIntake from "../../../orchestration-v2/ThreadMessageIntake.ts";
 import * as Claims from "../../../orchestration-v2/AttachmentClaims.ts";
+import * as AgentSessionImporter from "../../../project/AgentSessionImporter.ts";
 import * as Project from "../../../project/ProjectService.ts";
 import * as ProjectCloneTracker from "../../../project/ProjectCloneTracker.ts";
 import { mutateProjectWithClone } from "../../../project/ProjectMutation.ts";
@@ -389,5 +390,30 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
       }),
     // An existing destination is never adopted.
     { linkedCallers: "allowed" },
+  ),
+  t3_claude_session_search: McpToolAccess.writesEnvironment(({ environmentId: _, ...input }) =>
+    Effect.gen(function* () {
+      const importer = yield* AgentSessionImporter.AgentSessionImporter;
+      return yield* importer.searchClaudeSessions(input).pipe(Effect.mapError(unavailable));
+    }),
+  ),
+  t3_claude_session_import: McpToolAccess.writesEnvironment(({ environmentId: _, ...input }) =>
+    Effect.gen(function* () {
+      const scope = yield* McpInvocationContext.McpInvocationContext;
+      const importer = yield* AgentSessionImporter.AgentSessionImporter;
+      const result = yield* importer
+        .importClaudeSession(input)
+        .pipe(
+          Effect.mapError((error) =>
+            error._tag === "AgentSessionScanError"
+              ? unavailable()
+              : new OrchestratorMcpFailure({ code: "invalid_request", message: error.message }),
+          ),
+        );
+      return {
+        ...result,
+        link: formatThreadLink({ environmentId: scope.environmentId, threadId: result.threadId }),
+      };
+    }),
   ),
 });

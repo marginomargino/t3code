@@ -81,6 +81,20 @@ Claude Code holds the turn until that window reopens, so it can keep showing as
 working. Wait for the reset, or stop the turn and continue later. The warning's
 timestamp shows when the displayed wait started.
 
+## Import a Claude Code session
+
+Open the command palette and choose **Import Claude session**. Enter a session
+ID, or part of its title, and import the session you want. Sessions older than
+the welcome wizard's 30-day window can be imported too; search covers your
+5,000 most recent sessions. The session's folder must already be a project; add
+it first if T3 Code says so. Importing the same session again opens the existing
+thread.
+
+The thread shows recent messages from the session, without tool activity. Your
+next message resumes the Claude Code session itself, so Claude keeps its full
+context. If Claude Code has since deleted the session, T3 Code starts a new one
+with a summary of the imported messages instead.
+
 ## Skills
 
 Claude skills come from the config directory's `skills` folder and the project's

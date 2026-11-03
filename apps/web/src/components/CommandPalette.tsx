@@ -65,6 +65,7 @@ import {
   FolderIcon,
   FolderPlusIcon,
   GitForkIcon,
+  HistoryIcon,
   MessageSquareDashedIcon,
   LinkIcon,
   MessageSquareIcon,
@@ -245,6 +246,8 @@ import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
 import { Checkbox } from "./ui/checkbox";
 import { ProjectFilePicker } from "./files/ProjectFilePicker";
 import { openLinkPullRequestDialog } from "./pullRequest/LinkPullRequestDialog";
+import { openImportClaudeSessionDialog } from "./ImportClaudeSessionDialog";
+import { claudeSessionImport } from "../state/agentSessions";
 import { canShareWithGuestAtom } from "./chat/guestShareAvailability";
 import { openGuestShareDialog } from "./chat/guestShareDialogState";
 import { ProjectContentSearchDialog } from "./search/ProjectContentSearchDialog";
@@ -695,6 +698,10 @@ function OpenCommandPaletteDialog(props: {
     currentProjectId,
   );
   const currentProjectCwd = currentProject?.workspaceRoot ?? null;
+  const claudeImportEnvironmentId = currentProjectEnvironmentId ?? primaryEnvironmentId;
+  const canImportClaudeSession = useAtomValue(
+    claudeSessionImport.permissionAtom(claudeImportEnvironmentId),
+  );
   const currentProjectCwdForBrowse =
     browseEnvironmentId && currentProjectEnvironmentId === browseEnvironmentId
       ? currentProjectCwd
@@ -1296,6 +1303,20 @@ function OpenCommandPaletteDialog(props: {
       description: "An agent investigates a T3 Code problem and helps file an issue",
       icon: <BugIcon className={ITEM_ICON_CLASS} />,
       run: () => startTriage(triageEnvironmentId),
+    });
+  }
+
+  if (claudeImportEnvironmentId !== null && canImportClaudeSession) {
+    actionItems.push({
+      kind: "action",
+      value: "action:import-claude-session",
+      searchTerms: ["import", "claude", "session", "resume", "history", "transcript"],
+      title: "Import Claude session…",
+      description: "Continue a Claude Code session by its ID or title",
+      icon: <HistoryIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        openImportClaudeSessionDialog(claudeImportEnvironmentId);
+      },
     });
   }
 

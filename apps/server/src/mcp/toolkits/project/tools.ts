@@ -19,6 +19,10 @@ import {
   OrchestratorMcpFailure,
   SourceControlCloneRepositoryInput,
   SourceControlCloneRepositoryResult,
+  ClaudeSessionImportInput,
+  ClaudeSessionImportResult,
+  ClaudeSessionSearchInput,
+  ClaudeSessionSearchResult,
 } from "@t3tools/contracts";
 import * as FileSystem from "effect/FileSystem";
 import * as DocumentText from "../../../provider/DocumentText.ts";
@@ -30,6 +34,7 @@ import * as Digest from "effect/crypto/Digest";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/ai";
+import * as AgentSessionImporter from "../../../project/AgentSessionImporter.ts";
 import * as ProjectService from "../../../project/ProjectService.ts";
 import * as ProjectCloneTracker from "../../../project/ProjectCloneTracker.ts";
 import * as ManagedProjectFolders from "../../../project/ManagedProjectFolders.ts";
@@ -178,6 +183,31 @@ const ThreadLaunchTool = Tool.make("t3_thread_launch", {
   .annotate(Tool.Destructive, true)
   .annotate(Tool.OpenWorld, true);
 
+const ClaudeSessionSearchTool = Tool.make("t3_claude_session_search", {
+  ...shared,
+  description:
+    "Find Claude Code sessions by ID or title text. Null `projectId`: `t3_project_create` its `cwd` before import.",
+  parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
+    ...ClaudeSessionSearchInput.fields,
+  }),
+  success: ClaudeSessionSearchResult,
+  dependencies: [...shared.dependencies, AgentSessionImporter.AgentSessionImporter],
+})
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, false);
+const ClaudeSessionImportTool = Tool.make("t3_claude_session_import", {
+  ...shared,
+  description:
+    "Import a Claude Code session as a thread that resumes it; repeats return the same thread. Mention it with its `link`.",
+  parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
+    ...ClaudeSessionImportInput.fields,
+  }),
+  success: Schema.Struct({ ...ClaudeSessionImportResult.fields, link: Schema.String }),
+  dependencies: [...shared.dependencies, AgentSessionImporter.AgentSessionImporter],
+}).annotate(Tool.Destructive, false);
+
 export const ProjectToolkit = Toolkit.make(
   ThreadLaunchTool,
   ProjectListTool,
@@ -186,4 +216,6 @@ export const ProjectToolkit = Toolkit.make(
   ProjectUpdateTool,
   ProjectDeleteTool,
   ProjectCloneTool,
+  ClaudeSessionSearchTool,
+  ClaudeSessionImportTool,
 );
