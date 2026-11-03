@@ -39,6 +39,7 @@ import {
   THREAD_DETAILS_PANEL_LABEL_CLASS,
 } from "./threadDetailsPanelStyles";
 import { Menu, MenuPopup } from "../ui/menu";
+import { ThreadUsagePanel } from "./ThreadUsagePanel";
 
 const GitActionsControl = memo(BaseGitActionsControl);
 
@@ -283,6 +284,8 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 </ThreadDetailsControl>
               </div>
             </div>
+
+            {density === "full" ? <ThreadUsagePanel /> : null}
 
             <Menu
               open={menuPosition !== null}
