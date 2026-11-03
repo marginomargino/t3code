@@ -7,6 +7,8 @@ import { cachedTestTasks } from "./scripts/lib/cached-tests.ts";
 const TEST_EXCLUDE = [
   "**/.repos/**",
   "**/.t3/**",
+  // Claude Code places agent worktrees in .claude/worktrees inside the checkout.
+  "**/.claude/**",
   "**/node_modules/**",
   "**/dist/**",
   "**/dist-electron/**",
