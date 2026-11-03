@@ -2189,12 +2189,9 @@ export const make = Effect.gen(function* () {
     if (Option.isNone(stats) || stats.value.type !== "File") return null;
     const identity = transcriptIdentity(match.filePath, stats.value);
     // One explicitly chosen session keeps only the per-transcript byte and memory limits.
-    const snapshot = yield* readTranscript(
-      match.filePath,
-      identity,
-      Number.POSITIVE_INFINITY,
-      "claudeAgent",
-    ).pipe(importReadLock.withPermits(1));
+    const snapshot = yield* readTranscript(match.filePath, identity, "claudeAgent").pipe(
+      importReadLock.withPermits(1),
+    );
     if (snapshot === null) return null;
     const thread = parseAgentSessionRecords(
       {
