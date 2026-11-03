@@ -1895,7 +1895,7 @@ describe("ClaudeAdapterV2 turn hold", () => {
             attachmentsDir,
             fileSystem,
             path: yield* Path.Path,
-            crypto: yield* Crypto.Crypto,
+            random: yield* SecureRandom.SecureRandom,
             idAllocator,
             queryRunner: {
               allocateSessionId: Effect.succeed("native-thread-claude-turn-hold"),
@@ -1960,6 +1960,7 @@ describe("ClaudeAdapterV2 turn hold", () => {
               IdAllocator.layer,
               McpProviderSessions.layer,
               NodeServices.layer,
+              NodeCrypto.layer,
               ServerSettings.layerTest({ enableShellCommands }),
             ),
           ),
