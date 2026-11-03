@@ -50,3 +50,9 @@ fi
 echo "fork/main rebuilt: $(git rev-parse --short HEAD)"
 # Release fork/main so the main checkout can switch back to it.
 git switch --detach
+
+# Publishing stays a deliberate step: print the push, never run it.
+# Rebased branches need the lease; --prune drops fork/* branches deleted here.
+if git remote get-url fork >/dev/null 2>&1; then
+  echo "publish: git push --force-with-lease --prune fork main fork-meta 'refs/heads/fork/*:refs/heads/fork/*'"
+fi

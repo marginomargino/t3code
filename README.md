@@ -14,4 +14,10 @@ Sync (from the `.claude/worktrees/fork-sync` worktree, never the main checkout):
 git show fork-meta:fork-sync.sh > /tmp/fork-sync.sh && bash /tmp/fork-sync.sh
 ```
 
+Publish to the public fork (remote `fork`, github.com/marginomargino/t3code) after a sync:
+
+```sh
+git push --force-with-lease --prune fork main fork-meta 'refs/heads/fork/*:refs/heads/fork/*'
+```
+
 The pre-split history of `main` is tagged `pre-fork-split-main`.
