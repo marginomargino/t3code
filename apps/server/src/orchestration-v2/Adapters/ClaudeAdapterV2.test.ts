@@ -1386,7 +1386,7 @@ describe("ClaudeAdapterV2 artifact tools", () => {
   it.effect("turns Claude Code's Artifact tools on unless the instance sets them", () =>
     Effect.scoped(
       Effect.gen(function* () {
-        const artifact = (environment: ProviderInstanceEnvironment) =>
+        const artifact = (environment: ResolvedProviderInstanceEnvironment) =>
           captureSdkExecutablePaths("claude", environment).pipe(
             Effect.provideService(HostProcess.Environment, { PATH: "/bin" }),
             Effect.map(({ artifactEnvironment }) => artifactEnvironment),
@@ -1400,7 +1400,12 @@ describe("ClaudeAdapterV2 artifact tools", () => {
       }),
     ).pipe(
       Effect.provide(
-        Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        Layer.mergeAll(
+          IdAllocator.layer,
+          McpProviderSessions.layer,
+          NodeServices.layer,
+          NodeCrypto.layer,
+        ),
       ),
     ),
   );
