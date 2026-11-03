@@ -2451,7 +2451,7 @@ describe("ClaudeAdapterV2 native fork", () => {
           }),
           fileSystem,
           path: yield* Path.Path,
-          crypto: yield* Crypto.Crypto,
+          random: yield* SecureRandom.SecureRandom,
           idAllocator: yield* IdAllocator.IdAllocatorV2,
           queryRunner: {
             allocateSessionId: Effect.succeed("source-native-session"),
@@ -2518,7 +2518,12 @@ describe("ClaudeAdapterV2 native fork", () => {
         assert.deepEqual(forkCalls, []);
       }).pipe(
         Effect.provide(
-          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+          Layer.mergeAll(
+            IdAllocator.layer,
+            McpProviderSessions.layer,
+            NodeServices.layer,
+            NodeCrypto.layer,
+          ),
         ),
       ),
     ),
