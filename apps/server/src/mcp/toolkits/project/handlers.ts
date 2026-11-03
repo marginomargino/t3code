@@ -412,7 +412,7 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
         );
       return {
         ...result,
-        link: formatThreadLink({ environmentId: scope.environmentId, threadId: result.threadId }),
+        link: McpInvocationContext.threadLinkFor(scope, result.threadId),
       };
     }),
   ),
