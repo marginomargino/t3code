@@ -2201,6 +2201,14 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
       assert.equal(transfer.sourcePoint.providerThreadRef?.nativeId, "native-waiting-merge-source");
       assert.equal(transfer.basePoint?.runId, baseRunId);
       assert.isNull(transfer.error);
+      const marker = mergedTarget.turnItems.find((item) => item.type === "merge_back");
+      assert.isDefined(marker);
+      assert.equal(marker.type === "merge_back" && marker.sourceThreadId, sourceThreadId);
+      assert.equal(
+        marker.type === "merge_back" && marker.sourceThreadTitle,
+        "Waiting merge source",
+      );
+      assert.equal(marker.status, "completed");
     }),
   );
 });

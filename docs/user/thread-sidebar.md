@@ -212,6 +212,24 @@ On web and desktop, right-click a pull request link in a thread and choose
 same link to return to the branch PR, if one exists.
 The linked pull request participates in automatic settlement.
 
+## Fork a thread
+
+On web and desktop, choose **Fork thread** from a thread's right-click menu, the chat
+header menu, or the command palette to continue its latest finished turn in a new thread.
+Claude threads can be forked while they are working; the fork starts from the last finished
+turn and the running turn continues undisturbed. Other providers make the action available
+once the thread is idle. To fork from an earlier response, use the fork action on that message
+instead.
+
+A fork shows **↳** and its parent's title under its own; click it to open the parent.
+To nest forks below their parent when both are in the same section, use the tree button in
+the sidebar header (shown while a fork is listed) or **Settings → General → Show forks under
+parent**. Outside the pinned section, a nested tree sits where its highest thread would, so when
+the list is ordered by activity, activity in a fork lifts the whole tree.
+
+When you merge a fork back, the parent's agent is told that the fork exists and that it can
+read the fork or ask it questions, instead of receiving a copy of its contents.
+
 ## Find and reference work
 
 On web and desktop, open the command palette with `Cmd/Ctrl+K` to search threads

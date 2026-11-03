@@ -448,6 +448,8 @@ export interface ProviderAdapterV2EnsureThreadInput {
 
 export interface ProviderAdapterV2TurnInput {
   readonly appThread: OrchestrationV2AppThread;
+  /** Set on fork threads; the title is null when the parent was deleted. */
+  readonly forkParent?: { readonly threadId: ThreadId; readonly title: string | null };
   readonly threadId: ThreadId;
   readonly runId: RunId;
   readonly runOrdinal: number;

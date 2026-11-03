@@ -1300,6 +1300,75 @@ effectIt.effect.each([
   }),
 );
 
+effectIt.effect.each([{ fork: true }, { fork: false }])(
+  "hands a fork's parent to the provider session, not the Codex prompt: $fork",
+  ({ fork }) =>
+    Effect.gen(function* () {
+      const parentThreadId = ThreadId.make("fork-parent-thread");
+      const harness = makeLocalCommandHarness({
+        text: "Continue",
+        previousTurn: { runStatus: "completed", turnStatus: "completed" },
+      });
+      const projection = harness.projection();
+      const run = projection.runs.at(-1)!;
+      if (fork) {
+        harness.setProjection({
+          ...projection,
+          thread: {
+            ...projection.thread,
+            lineage: {
+              ...projection.thread.lineage,
+              parentThreadId,
+              relationshipToParent: "fork",
+            },
+          },
+          contextTransfers: [
+            {
+              id: ContextTransferId.make("fork-transfer"),
+              type: "fork",
+              sourceThreadId: parentThreadId,
+              targetThreadId: run.threadId,
+              sourcePoint: { threadId: parentThreadId, runId: RunId.make("fork-parent-run") },
+              basePoint: null,
+              sourceProviderInstanceId: harness.newInstanceId,
+              targetProviderInstanceId: harness.newInstanceId,
+              targetRunId: run.id,
+              status: "resolved_native",
+              resolution: null,
+              createdBy: "user",
+              error: null,
+              createdAt: projection.updatedAt,
+              updatedAt: projection.updatedAt,
+              consumedAt: null,
+            },
+          ],
+        });
+      }
+      harness.getThreadRecords.mockImplementation((threadId) =>
+        Effect.succeed(
+          threadId === parentThreadId
+            ? {
+                ...harness.projection(),
+                thread: {
+                  ...harness.projection().thread,
+                  id: parentThreadId,
+                  title: "Parent work",
+                },
+              }
+            : harness.projection(),
+        ),
+      );
+
+      yield* harness.start;
+
+      const startInput = harness.startRootRun.mock.calls[0]?.[0];
+      expect(startInput?.message.text).toBe("Continue");
+      expect(startInput?.forkParent).toEqual(
+        fork ? { threadId: parentThreadId, title: "Parent work" } : undefined,
+      );
+    }),
+);
+
 effectIt.effect("does not start another turn when abandoned-turn cleanup fails", () =>
   Effect.gen(function* () {
     const harness = makeLocalCommandHarness({
