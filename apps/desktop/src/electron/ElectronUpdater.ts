@@ -58,6 +58,8 @@ export type ElectronUpdaterError = typeof ElectronUpdaterError.Type;
 export class ElectronUpdater extends Context.Service<
   ElectronUpdater,
   {
+    // True when the updater needs no app-update.yml feed, such as a local rebuild.
+    readonly providesOwnFeed: boolean;
     readonly setFeedURL: (options: ElectronUpdaterFeedUrl) => Effect.Effect<void>;
     readonly setAutoDownload: (value: boolean) => Effect.Effect<void>;
     readonly setAutoInstallOnAppQuit: (value: boolean) => Effect.Effect<void>;
@@ -82,6 +84,7 @@ export class ElectronUpdater extends Context.Service<
 
 /** @public */
 export const make = ElectronUpdater.of({
+  providesOwnFeed: false,
   setFeedURL: Effect.fn("ElectronUpdater.setFeedURL")(function (options) {
     return Effect.suspend(() => {
       autoUpdater.setFeedURL(options);
