@@ -10,7 +10,11 @@ import {
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "~/lib/utils";
-import { resolveSidebarRowAccessibility } from "../Sidebar.logic";
+import {
+  isInSidebarThreadScope,
+  resolveSidebarRowAccessibility,
+  type SidebarThreadScope,
+} from "../Sidebar.logic";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
@@ -142,7 +146,7 @@ interface SidebarDraftRowData {
 export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   projectByKey: ReadonlyMap<string, EnvironmentProject>;
   projectDisplayNameByKey: ReadonlyMap<string, string>;
-  scopedProjectKeys: ReadonlySet<string> | null;
+  threadScope: SidebarThreadScope | null;
   routeDraftId: string | null;
   onNavigateToDraft: (draftId: DraftId) => void;
   onDraftContextMenu: (draftId: DraftId, position: { x: number; y: number }) => void;
@@ -180,10 +184,7 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
       if (session.promotedTo != null) {
         continue;
       }
-      if (
-        props.scopedProjectKeys !== null &&
-        !props.scopedProjectKeys.has(`${session.environmentId}:${session.projectId}`)
-      ) {
+      if (!isInSidebarThreadScope(props.threadScope, session)) {
         continue;
       }
       if (draftKey === props.routeDraftId) {
