@@ -343,7 +343,7 @@ describe("V2 environment commands", () => {
         threadId: v2ThreadId,
         turnItemId: "item-shell",
       });
-    }).pipe(Effect.provide(layerTestCrypto)),
+    }).pipe(Effect.provide(layerTestRandom)),
   );
 
   it.effect("uses server-resolved delivery intent without fetching the full projection", () =>
