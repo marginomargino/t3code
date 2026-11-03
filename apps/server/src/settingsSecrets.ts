@@ -3,7 +3,9 @@ import {
   ClaudeSettings,
   CodexSettings,
   EasDeviceHostConfig,
+  type ProviderInstanceMutation,
   type ServerSettings,
+  type ServerSettingsPatch,
   SimlockDeviceHostConfig,
   UsageLimitSourceConfig,
   isSecretReference,
@@ -59,10 +61,19 @@ export interface SettingsSecret {
 
 type SecretValue = Pick<SettingsSecret, "value" | "redacted">;
 
-export function mapSettingsSecrets(
-  settings: ServerSettings,
+type SecretBearingSettings = Pick<
+  ServerSettings,
+  | "providerInstances"
+  | "sourceControlHosts"
+  | "usageLimitSources"
+  | "easDeviceHosts"
+  | "simlockDeviceHosts"
+>;
+
+export function mapSettingsSecrets<Settings extends SecretBearingSettings>(
+  settings: Settings,
   map: (secret: SettingsSecret) => SecretValue,
-): ServerSettings {
+): Settings {
   const mapFields = (
     fields: Readonly<Record<string, unknown>>,
     secretFields: ReadonlyArray<string>,
@@ -189,5 +200,49 @@ export function mapSettingsSecrets(
     usageLimitSources,
     easDeviceHosts,
     simlockDeviceHosts,
+  };
+}
+
+/** Maps the secrets a client settings update would write, keeping every other patch field. */
+export function mapSettingsUpdateSecrets(
+  update: {
+    readonly patch: ServerSettingsPatch;
+    readonly providerInstanceMutation?: ProviderInstanceMutation | undefined;
+  },
+  map: (secret: SettingsSecret) => SecretValue,
+) {
+  const { patch, providerInstanceMutation: mutation } = update;
+  const instance = mutation?.operation === "remove" ? undefined : mutation;
+  const usageLimitSources = patch.usageLimitSources ?? {};
+  const mapped = mapSettingsSecrets(
+    {
+      providerInstances: instance ? { [instance.instanceId]: instance.instance } : {},
+      sourceControlHosts: patch.sourceControlHosts ?? {},
+      usageLimitSources: Object.fromEntries(
+        Object.entries(usageLimitSources).filter(
+          (entry): entry is [string, UsageLimitSourceConfig] => entry[1] !== null,
+        ),
+      ),
+      easDeviceHosts: patch.easDeviceHosts ?? [],
+      simlockDeviceHosts: patch.simlockDeviceHosts ?? [],
+    },
+    map,
+  );
+  return {
+    patch: {
+      ...patch,
+      ...(patch.sourceControlHosts ? { sourceControlHosts: mapped.sourceControlHosts } : {}),
+      ...(patch.usageLimitSources
+        ? { usageLimitSources: { ...usageLimitSources, ...mapped.usageLimitSources } }
+        : {}),
+      ...(patch.easDeviceHosts ? { easDeviceHosts: mapped.easDeviceHosts } : {}),
+      ...(patch.simlockDeviceHosts ? { simlockDeviceHosts: mapped.simlockDeviceHosts } : {}),
+    },
+    providerInstanceMutation: instance
+      ? {
+          ...instance,
+          instance: mapped.providerInstances[instance.instanceId] ?? instance.instance,
+        }
+      : mutation,
   };
 }

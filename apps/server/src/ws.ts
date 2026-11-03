@@ -226,6 +226,7 @@ import * as RemoteOpenTargets from "./environment/RemoteOpenTargets.ts";
 import * as DefectReporter from "./observability/DefectReporter.ts";
 import * as EventLoopMonitor from "./observability/EventLoopMonitor.ts";
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
+import * as ClientSettingsRegistry from "./clientSettings/ClientSettingsRegistry.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import { requiredScopeForDeviceList, rpcAuthorizationError } from "./auth/RpcAuthorization.ts";
 import * as RpcAuthorization from "./auth/RpcAuthorization.ts";
@@ -1424,6 +1425,7 @@ export const layerWsRpc = (
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
+      const clientSettingsRegistry = yield* ClientSettingsRegistry.ClientSettingsRegistry;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
       yield* Effect.addFinalizer(() =>
         Ref.get(rpcClientIds).pipe(
@@ -2579,20 +2581,10 @@ export const layerWsRpc = (
           Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(
             Effect.andThen(peerLinkRequests.answer(input)),
           ),
-        [WS_METHODS.serverUpdateSettings]:
-          /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(function* ({ patch, providerInstanceMutation }) {
-            const deviceHosts = patch.deviceHosts
-              ? yield* remoteSshDeviceHosts(patch.deviceHosts).pipe(
-                  Effect.provide(deviceHostContext),
-                )
-              : undefined;
-            const nextPatch = { ...patch, ...(deviceHosts ? { deviceHosts } : {}) };
-            const settings = yield* providerInstanceMutation === undefined
-              ? serverSettings.updateSettings(nextPatch)
-              : serverSettings.updateProviderInstance(providerInstanceMutation, nextPatch);
-            return ServerSettings.redactServerSettingsForClient(settings);
-          }),
+        [WS_METHODS.serverUpdateSettings]: (input) =>
+          ServerSettings.applyClientSettingsUpdate(serverSettings, input).pipe(
+            Effect.provide(deviceHostContext),
+          ),
         [WS_METHODS.serverDiscoverSourceControl]: (_input) => sourceControlDiscovery.discover,
         [WS_METHODS.serverGetTraceDiagnostics]: (_input) =>
           TraceDiagnostics.readTraceDiagnostics({
@@ -2625,6 +2617,8 @@ export const layerWsRpc = (
               ),
             ),
           ),
+        [WS_METHODS.clientSettingsReport]: (input) =>
+          clientSettingsRegistry.report(currentSessionId, input),
         [WS_METHODS.cloudGetRelayClientStatus]: (_input) => relayClient.resolve,
         [WS_METHODS.cloudInstallRelayClient]: (_input) =>
           Stream.callback<RelayClientInstallProgressEvent, RelayClientInstallFailedError>((queue) =>
@@ -3346,6 +3340,17 @@ export const layerWsRpc = (
           Stream.unwrap(
             Effect.map(resourceTelemetry.subscribe, ({ latest, changes }) =>
               Stream.concat(Stream.make(latest), changes),
+            ),
+          ),
+        [WS_METHODS.subscribeClientSettingsPatches]: (input) =>
+          Stream.unwrap(
+            sessions.listActive().pipe(
+              Effect.map((active) => active.find((s) => s.sessionId === currentSessionId)?.client),
+              // The label only names the client for agents; attach without it.
+              Effect.orElseSucceed(() => undefined),
+              Effect.map((client) =>
+                clientSettingsRegistry.attach(currentSessionId, input, client),
+              ),
             ),
           ),
       });

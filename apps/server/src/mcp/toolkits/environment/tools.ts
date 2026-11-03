@@ -1,17 +1,27 @@
 import {
   BackgroundActivityProfile,
   BackgroundActivityProfileSelection,
+  ClientKind,
+  ClientSettingsSchema,
   ExecutionEnvironmentDescriptor,
   OrchestratorMcpEnvironmentTarget,
   OrchestratorMcpFailure,
+  ProviderInstanceMutation,
+  ResolvedKeybindingsConfig,
   ServerSettings,
   ServerSettingsPatch,
 } from "@t3tools/contracts";
+import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/ai";
+import * as ClientSettingsRegistry from "../../../clientSettings/ClientSettingsRegistry.ts";
 import * as ServerEnvironment from "../../../environment/ServerEnvironment.ts";
+import * as Keybindings from "../../../keybindings.ts";
 import * as ThreadCommandExecutor from "../../../orchestration-v2/ThreadCommandExecutor.ts";
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
+import * as SecretRequests from "../../../secrets/SecretRequests.ts";
 import * as Settings from "../../../serverSettings.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
@@ -38,6 +48,13 @@ const shared = {
     ThreadCommandExecutor.ThreadCommandExecutor,
   ],
 };
+// Plain strings: the full command enum would cost every agent ~5 KB. Handlers decode them.
+const KeybindingRuleFields = {
+  key: Schema.String,
+  command: Schema.String,
+  when: Schema.optionalKey(Schema.String),
+};
+const fullAccessOnly = "Live full-access or default caller thread only.";
 const EnvironmentReadTool = Tool.make("t3_environment_read", {
   ...shared,
   description:
@@ -67,4 +84,84 @@ const EnvironmentPreferencesTool = Tool.make("t3_environment_preferences_update"
   }),
   success: Schema.Struct(PreferenceFields),
 }).annotate(Tool.Destructive, true);
-export const EnvironmentToolkit = Toolkit.make(EnvironmentReadTool, EnvironmentPreferencesTool);
+const SettingsReadTool = Tool.make("t3_settings_read", {
+  ...shared,
+  description: "Read every environment setting and the keybindings. Secrets come back masked.",
+  dependencies: [...shared.dependencies, Keybindings.Keybindings],
+  success: Schema.Struct({ settings: ServerSettings, keybindings: ResolvedKeybindingsConfig }),
+})
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false);
+const SettingsUpdateTool = Tool.make("t3_settings_update", {
+  ...shared,
+  description: `Update environment settings. ${fullAccessOnly} \`patch\` takes the fields \`t3_settings_read\` returns; omitted fields are unchanged, but a field inside \`sourceControlHosts.<kind>\` is replaced whole, so resend its masked entries. A secret field takes \`secretRef:<ref>\` from \`request_secret\`, never a raw value; a masked value keeps the stored secret. Change providers one at a time with \`providerInstanceMutation\`.`,
+  dependencies: [
+    ...shared.dependencies,
+    SecretRequests.SecretRequests,
+    ChildProcessSpawner.ChildProcessSpawner,
+    FileSystem.FileSystem,
+    Path.Path,
+  ],
+  parameters: Schema.Struct({
+    patch: Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown)),
+    providerInstanceMutation: Schema.optionalKey(ProviderInstanceMutation),
+  }),
+  success: ServerSettings,
+}).annotate(Tool.Destructive, true);
+const ClientSettingsReadTool = Tool.make("t3_client_settings_read", {
+  ...shared,
+  description:
+    "Read the app settings of each web and desktop client connected now (theme, sidebar, chat width…). Each device keeps its own; mobile is not listed. `t3_settings_read` holds server settings.",
+  dependencies: [...shared.dependencies, ClientSettingsRegistry.ClientSettingsRegistry],
+  success: Schema.Struct({
+    clients: Schema.Array(
+      Schema.Struct({
+        clientId: Schema.String,
+        kind: ClientKind,
+        label: Schema.optionalKey(Schema.String),
+        os: Schema.optionalKey(Schema.String),
+        browser: Schema.optionalKey(Schema.String),
+        settings: ClientSettingsSchema,
+      }),
+    ),
+  }),
+})
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false);
+const ClientSettingsUpdateTool = Tool.make("t3_client_settings_update", {
+  ...shared,
+  description: `Change app settings on one connected client; it applies at once. ${fullAccessOnly} \`clientId\` comes from \`t3_client_settings_read\`; \`patch\` takes its \`settings\` fields, omitted fields are unchanged. Returns what the client saved.`,
+  dependencies: [...shared.dependencies, ClientSettingsRegistry.ClientSettingsRegistry],
+  parameters: Schema.Struct({
+    clientId: Schema.String,
+    patch: Schema.Record(Schema.String, Schema.Unknown),
+  }),
+  success: ClientSettingsSchema,
+}).annotate(Tool.Destructive, true);
+const KeybindingUpsertTool = Tool.make("t3_keybinding_upsert", {
+  ...shared,
+  description: `Add or replace a keybinding. ${fullAccessOnly} Rule fields and command ids match the keybindings \`t3_settings_read\` returns; \`replace\` names the rule to swap out.`,
+  dependencies: [...shared.dependencies, Keybindings.Keybindings],
+  parameters: Schema.Struct({
+    ...KeybindingRuleFields,
+    replace: Schema.optionalKey(Schema.Struct(KeybindingRuleFields)),
+  }),
+  success: ResolvedKeybindingsConfig,
+}).annotate(Tool.Destructive, true);
+const KeybindingRemoveTool = Tool.make("t3_keybinding_remove", {
+  ...shared,
+  description: `Remove a keybinding. ${fullAccessOnly}`,
+  dependencies: [...shared.dependencies, Keybindings.Keybindings],
+  parameters: Schema.Struct(KeybindingRuleFields),
+  success: ResolvedKeybindingsConfig,
+}).annotate(Tool.Destructive, true);
+export const EnvironmentToolkit = Toolkit.make(
+  EnvironmentReadTool,
+  EnvironmentPreferencesTool,
+  SettingsReadTool,
+  SettingsUpdateTool,
+  ClientSettingsReadTool,
+  ClientSettingsUpdateTool,
+  KeybindingUpsertTool,
+  KeybindingRemoveTool,
+);
