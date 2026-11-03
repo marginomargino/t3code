@@ -1,5 +1,5 @@
 import { parseScopedThreadKey, scopedThreadKey } from "@t3tools/client-runtime/environment";
-import { type ScopedThreadRef } from "@t3tools/contracts";
+import { AGENT_TERMINAL_ID_PREFIX, type ScopedThreadRef } from "@t3tools/contracts";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { resolveStorage } from "./lib/storage";
@@ -517,6 +517,19 @@ function updateTerminalUiStateByThreadKey(
   };
 }
 
+/**
+ * Agent tabs the server listed and then dropped were closed there, possibly while unmounted. Other
+ * ids also vanish when the server restarts, and their tabs reattach, so they are never inferred.
+ */
+export function agentTerminalIdsClosedOnServer(
+  previouslyListed: ReadonlySet<string>,
+  listed: ReadonlySet<string>,
+): string[] {
+  return [...previouslyListed].filter(
+    (id) => id.startsWith(AGENT_TERMINAL_ID_PREFIX) && !listed.has(id),
+  );
+}
+
 function updateSuppressedTerminalId(
   suppressedTerminalIdsByThreadKey: Record<string, string[]>,
   threadRef: ScopedThreadRef,
@@ -574,6 +587,8 @@ interface TerminalUiStateStoreState {
   setActiveTerminal: (threadRef: ScopedThreadRef, terminalId: string) => void;
   closeTerminal: (threadRef: ScopedThreadRef, terminalId: string) => void;
   reconcileTerminalIds: (threadRef: ScopedThreadRef, nextIds: string[]) => void;
+  /** Drops tabs the server closed and stops suppressing them, so a reopened id shows again. */
+  forgetServerClosedTerminals: (threadRef: ScopedThreadRef, closedIds: readonly string[]) => void;
   clearTerminalUiState: (threadRef: ScopedThreadRef) => void;
   removeTerminalUiState: (threadRef: ScopedThreadRef) => void;
   removeOrphanedTerminalUiStates: (activeThreadKeys: Set<string>) => void;
@@ -694,6 +709,36 @@ export const useTerminalUiStateStore = create<TerminalUiStateStoreState>()(
               state,
               nextIds.filter((terminalId) => !suppressedIds.has(terminalId)),
             );
+          }),
+        forgetServerClosedTerminals: (threadRef, closedIds) =>
+          set((state) => {
+            const closed = new Set(closedIds);
+            const nextTerminalUiStateByThreadKey = updateTerminalUiStateByThreadKey(
+              state.terminalUiStateByThreadKey,
+              threadRef,
+              (terminalState) =>
+                terminalState.terminalIds.some((id) => closed.has(id))
+                  ? reconcileThreadTerminalSessionIds(
+                      terminalState,
+                      terminalState.terminalIds.filter((id) => !closed.has(id)),
+                    )
+                  : terminalState,
+            );
+            const nextSuppressedTerminalIdsByThreadKey = closedIds.reduce(
+              (suppressed, terminalId) =>
+                updateSuppressedTerminalId(suppressed, threadRef, terminalId, false),
+              state.suppressedTerminalIdsByThreadKey,
+            );
+            if (
+              nextTerminalUiStateByThreadKey === state.terminalUiStateByThreadKey &&
+              nextSuppressedTerminalIdsByThreadKey === state.suppressedTerminalIdsByThreadKey
+            ) {
+              return state;
+            }
+            return {
+              terminalUiStateByThreadKey: nextTerminalUiStateByThreadKey,
+              suppressedTerminalIdsByThreadKey: nextSuppressedTerminalIdsByThreadKey,
+            };
           }),
         clearTerminalUiState: (threadRef) =>
           set((state) => {

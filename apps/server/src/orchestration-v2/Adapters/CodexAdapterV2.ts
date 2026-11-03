@@ -1412,7 +1412,12 @@ function codexThreadRuntimeParams(input: {
         ? {}
         : {
             // Override only T3's servers so launch-argument MCP servers survive.
-            "mcp_servers.t3-code": { ...t3Server, disabled_tools: [CODEX_DIRECT_ONLY_T3_TOOL] },
+            "mcp_servers.t3-code": {
+              ...t3Server,
+              disabled_tools: [CODEX_DIRECT_ONLY_T3_TOOL],
+              // Auto mode would otherwise remember one approval for every later command.
+              tools: { t3_terminal_run: { approval_mode: "prompt" } },
+            },
             // Code Mode runs a blocking wait as a nested call, and the model keeps working
             // around it. A second, direct-only registration makes it a plain tool call.
             [`mcp_servers.${CODEX_T3_DIRECT_MCP_SERVER}`]: {

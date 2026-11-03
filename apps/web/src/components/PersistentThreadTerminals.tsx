@@ -8,7 +8,7 @@ import {
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@t3tools/shared/projectScripts";
 import { resolveTerminalSessionLabel } from "@t3tools/shared/terminalLabels";
-import { memo, useEffect } from "react";
+import { memo, useEffect, useRef } from "react";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { useStableCallback } from "../hooks/useStableCallback";
 import type { TerminalContextSelection } from "../lib/terminalContext";
@@ -22,7 +22,11 @@ import {
 import { useProject, useQuietThreadShell } from "../state/entities";
 import { useEnvironmentScope } from "../state/session";
 import { useKnownTerminalSessions } from "../state/terminalSessions";
-import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
+import {
+  agentTerminalIdsClosedOnServer,
+  selectThreadTerminalUiState,
+  useTerminalUiStateStore,
+} from "../terminalUiStateStore";
 import { useThreadTerminalActions } from "./terminal/useThreadTerminalActions";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
 import { resolveTerminalWorktreePath } from "./ChatView.logic";
@@ -161,9 +165,22 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   const storeSetActiveTerminal = useTerminalUiStateStore((state) => state.setActiveTerminal);
   const storeCloseTerminal = useTerminalUiStateStore((state) => state.closeTerminal);
   const reconcileTerminalIds = useTerminalUiStateStore((state) => state.reconcileTerminalIds);
+  const forgetServerClosedTerminals = useTerminalUiStateStore(
+    (state) => state.forgetServerClosedTerminals,
+  );
+  const listedServerTerminalIds = useRef<ReadonlySet<string>>(new Set());
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reconciles the terminal UI store's ids with the server's terminal list when they diverge
   useEffect(() => {
+    if (knownTerminalSessions !== null) {
+      const listed = new Set(knownTerminalSessions.map((session) => session.target.terminalId));
+      const closed = agentTerminalIdsClosedOnServer(listedServerTerminalIds.current, listed);
+      listedServerTerminalIds.current = listed;
+      if (closed.length > 0) {
+        forgetServerClosedTerminals(threadRef, closed);
+        return;
+      }
+    }
     if (terminalIdListsEqual(serverOrderedTerminalIds, terminalUiState.terminalIds)) {
       return;
     }
@@ -173,7 +190,14 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
       return;
     }
     reconcileTerminalIds(threadRef, serverOrderedTerminalIds);
-  }, [reconcileTerminalIds, serverOrderedTerminalIds, terminalUiState.terminalIds, threadRef]);
+  }, [
+    forgetServerClosedTerminals,
+    knownTerminalSessions,
+    reconcileTerminalIds,
+    serverOrderedTerminalIds,
+    terminalUiState.terminalIds,
+    threadRef,
+  ]);
   const worktreePath = serverThread?.worktreePath ?? draftThread?.worktreePath ?? null;
   const effectiveWorktreePath = launchContext !== null ? launchContext.worktreePath : worktreePath;
   const cwd =

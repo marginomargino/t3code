@@ -89,6 +89,7 @@ import { HtmlToolkit } from "../../mcp/toolkits/html/tools.ts";
 import { EnvironmentToolkit } from "../../mcp/toolkits/environment/tools.ts";
 import { ProjectToolkit } from "../../mcp/toolkits/project/tools.ts";
 import { WorktreeToolkit } from "../../mcp/toolkits/worktree/tools.ts";
+import { TerminalToolkit } from "../../mcp/toolkits/terminal/tools.ts";
 import { ThreadToolkit } from "../../mcp/toolkits/thread/tools.ts";
 import { OrchestratorToolkit } from "../../mcp/toolkits/orchestrator/tools.ts";
 import { ClaudeExecutableFileCheck } from "../../provider/Drivers/ClaudeExecutable.ts";
@@ -574,6 +575,7 @@ describe("ClaudeAdapterV2 MCP query overrides", () => {
       ...Object.values(OrchestratorToolkit.tools),
       ...Object.values(ThreadToolkit.tools),
       ...Object.values(WorktreeToolkit.tools),
+      ...Object.values(TerminalToolkit.tools),
       ...Object.values(ProjectToolkit.tools),
       ...Object.values(EnvironmentToolkit.tools),
       ...Object.values(PreviewControlsToolkit.tools),
@@ -661,6 +663,26 @@ describe("ClaudeAdapterV2 native protocol logging", () => {
     const logged = ClaudeAdapterV2.loggedClaudeQueryOptions(options);
     assert.deepEqual(logged.settingKeys, ["env", "showThinkingSummaries"]);
     assert.notInclude(JSON.stringify(logged), "secret-settings-key");
+  });
+
+  it.each([
+    ["auto", ["mcp__t3-code__t3_terminal_run"]],
+    ["bypassPermissions", undefined],
+  ] as const)("in %s mode, asks before t3_terminal_run: %j", (permissionMode, ask) => {
+    const options = ClaudeAdapterV2.makeClaudeQueryOptions({
+      modelSelection: CLAUDE_TEST_MODEL_SELECTION,
+      nativeThreadId: "native-thread-claude-terminal-review",
+      resume: false,
+      cwd: "/workspace",
+      permissionMode,
+      allowedTools: [ClaudeAdapterV2.CLAUDE_T3_MCP_TOOL_WILDCARD],
+      mcpServers: { "t3-code": { type: "http", url: "http://127.0.0.1/mcp" } },
+    });
+    const settings = options.settings;
+    assert.deepEqual(
+      typeof settings === "object" ? settings?.permissions?.ask : "file",
+      ask === undefined ? undefined : [...ask],
+    );
   });
 });
 

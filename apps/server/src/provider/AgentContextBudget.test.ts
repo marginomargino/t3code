@@ -41,6 +41,7 @@ import { Keybindings } from "../keybindings.ts";
 import { SecretRequests } from "../secrets/SecretRequests.ts";
 import { ServerSettingsService } from "../serverSettings.ts";
 import { SourceControlRepositoryService } from "../sourceControl/SourceControlRepositoryService.ts";
+import { TerminalManager } from "../terminal/Manager.ts";
 import { GitVcsDriver } from "../vcs/GitVcsDriver.ts";
 import { VcsStatusBroadcaster } from "../vcs/VcsStatusBroadcaster.ts";
 import { buildCodexAdditionalContext } from "./CodexDeveloperInstructions.ts";
@@ -80,6 +81,7 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(ServerSettingsService)({}),
   Layer.mock(SourceControlRepositoryService)({}),
   Layer.mock(AgentSessionImporter)({}),
+  Layer.mock(TerminalManager)({}),
   Layer.mock(ThreadLaunchService)({}),
   Layer.mock(ThreadManagementService)({}),
   Layer.mock(ThreadSearch)({}),
