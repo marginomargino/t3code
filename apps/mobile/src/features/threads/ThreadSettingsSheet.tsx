@@ -93,6 +93,7 @@ import {
 import { useQuietThreadStructure } from "../../state/use-thread-detail";
 import { activeComposerDraftKey, useQueuedRunEdit } from "../../state/queued-run-edit";
 import { selectThreadModel } from "../../state/thread-model-selection";
+import { resetThreadDraftInteractionModeForModel } from "../../state/use-thread-composer-state";
 import { useThreadSelection } from "../../state/use-thread-selection";
 import { useSelectedThreadWorktree } from "../../state/use-selected-thread-worktree";
 import { providerWorkspaceSnapshotRefresh } from "../../state/provider-workspace-snapshot-refresh";
@@ -1538,8 +1539,10 @@ export function ExistingThreadSettingsRouteScreen({
         option.selection.instanceId === modelSelection.instanceId &&
         option.selection.model === modelSelection.model,
     ) ?? null;
-  const updateModelSelection = (selection: ModelSelection) =>
+  const updateModelSelection = (selection: ModelSelection) => {
     selectThreadModel(route.params, selection);
+    resetThreadDraftInteractionModeForModel(threadKey, selection, serverConfig?.providers ?? []);
+  };
 
   return (
     <ThreadSettingsPickerScreen

@@ -123,16 +123,16 @@ function getSelectedTraits(
   promptUltrathink: PromptUltrathink,
   modelOptions: ProviderOptions | null | undefined,
   allowPromptInjectedEffort: boolean,
-  includePlanAgent: boolean | undefined,
+  planModeEnabled: boolean,
   resolve: MessageResolver = m,
 ) {
-  const caps = getProviderModelCapabilities(models, model, provider, includePlanAgent);
+  const caps = getProviderModelCapabilities(models, model, provider, planModeEnabled);
   const modelIsUnavailable =
     keepsUnavailableModelOptions(provider, model) &&
     !models.some((candidate) => candidate.slug === normalizeModelSlug(model, provider));
   const descriptors = modelIsUnavailable
     ? buildUnavailableModelOptionDescriptors(
-        includePlanAgent
+        planModeEnabled
           ? modelOptions
           : modelOptions?.filter((option) => option.id !== "agent" || option.value !== "plan"),
         resolve,
@@ -203,7 +203,7 @@ export function getTraitsSectionVisibility(input: {
   promptUltrathink?: PromptUltrathink | undefined;
   modelOptions?: ProviderOptions | null | undefined;
   allowPromptInjectedEffort?: boolean;
-  includePlanAgent?: boolean | undefined;
+  planModeEnabled: boolean;
   resolve?: MessageResolver;
 }) {
   const selected = getSelectedTraits(
@@ -213,7 +213,7 @@ export function getTraitsSectionVisibility(input: {
     input.promptUltrathink ?? "none",
     input.modelOptions,
     input.allowPromptInjectedEffort ?? true,
-    input.includePlanAgent,
+    input.planModeEnabled,
     input.resolve,
   );
 
@@ -253,7 +253,7 @@ export function getReasoningTraitStep(input: {
   modelOptions: ProviderOptions | undefined;
   reportedModelSelection: ModelSelection | null | undefined;
   prompt: string;
-  includePlanAgent?: boolean | undefined;
+  planModeEnabled: boolean;
   direction: 1 | -1;
 }) {
   const selected = getSelectedTraits(
@@ -263,7 +263,7 @@ export function getReasoningTraitStep(input: {
     readPromptUltrathink(input.prompt),
     input.modelOptions,
     true,
-    input.includePlanAgent,
+    input.planModeEnabled,
   );
   if (selected.modelIsUnavailable || selected.ultrathinkInBodyText) return null;
   const descriptor = selected.selectDescriptors.find(isReasoningSelect);
@@ -302,7 +302,7 @@ export interface TraitsMenuContentProps {
   modelOptions?: ProviderOptions | null | undefined;
   reportedModelSelection?: ModelSelection | null | undefined;
   allowPromptInjectedEffort?: boolean;
-  includePlanAgent?: boolean | undefined;
+  planModeEnabled: boolean;
   triggerClassName?: string;
 }
 
@@ -319,7 +319,7 @@ export function useTraitsSelection({
   modelOptions,
   reportedModelSelection,
   allowPromptInjectedEffort = true,
-  includePlanAgent,
+  planModeEnabled,
   triggerClassName: _triggerClassName,
   ...persistence
 }: TraitsSelectionInput) {
@@ -350,7 +350,7 @@ export function useTraitsSelection({
     promptUltrathink,
     modelOptions,
     allowPromptInjectedEffort,
-    includePlanAgent,
+    planModeEnabled,
     resolve,
   });
   return {

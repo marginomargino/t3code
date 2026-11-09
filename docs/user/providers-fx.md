@@ -65,6 +65,7 @@ fx doesn't pass on a sub-agent's permission requests, so a sub-agent that needs 
 
 ## Not supported yet
 
+- Plan mode.
 - **Auto-accept edits**.
 - Commit messages, pull request text, branch names, and thread titles. Pick another provider for those.
 
