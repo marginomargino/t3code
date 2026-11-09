@@ -90,6 +90,8 @@ export interface TimelineRowSharedState {
   onForkFromRun:
     | ((input: { readonly sourceThreadId: ThreadId; readonly runId: RunId }) => Promise<void>)
     | undefined;
+  /** Set only in a fork; offered on the response of `runId`, the fork's latest finished run. */
+  finalizeFork: { readonly runId: RunId; readonly onFinalize: () => Promise<void> } | null;
   onToggleTurnFold: (runId: RunId) => void;
   onToggleAttemptFold: (attemptId: RunAttemptId) => void;
   onFileOpen: (attachment: ChatFileAttachment) => void;
