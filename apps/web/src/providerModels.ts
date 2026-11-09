@@ -53,12 +53,12 @@ export function getProviderModelCapabilities(
   models: ReadonlyArray<ServerProviderModel>,
   model: string | null | undefined,
   provider: ProviderDriverKind,
-  includePlanAgent = false,
+  planModeEnabled = true,
 ): ModelCapabilities {
   const slug = resolveSelectableModel(provider, model, models);
   const selectedModel = models.find((candidate) => candidate.slug === slug);
   const caps = selectedModel?.capabilities ?? EMPTY_CAPABILITIES;
-  if (includePlanAgent) {
+  if (planModeEnabled) {
     return caps;
   }
   return withoutPlanAgentOption(caps);
