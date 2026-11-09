@@ -11,7 +11,8 @@ git config rerere.enabled true
 git config rerere.autoUpdate true
 git fetch origin main
 
-branches=$(git for-each-ref --format='%(refname:short)' 'refs/heads/fork/' |
+# lstrip=2, not short: with a remote named `fork`, short spells fork/main as heads/fork/main.
+branches=$(git for-each-ref --format='%(refname:lstrip=2)' 'refs/heads/fork/' |
   grep -v '^fork/main$' | sort -t/ -k2 -V)
 
 # Old tips, so stacked branches rebase only their own commits.
@@ -21,7 +22,7 @@ old_tip() { echo "$old_tips" | awk -v b="$1" '$1 == b { print $2 }'; }
 parent_of() { # fork/20.1-bar -> fork/20-*, fork/20-foo -> origin/main
   local order=${1#fork/}; order=${order%%-*}
   if [[ $order == *.* ]]; then
-    git for-each-ref --format='%(refname:short)' "refs/heads/fork/${order%.*}-*" | head -1
+    git for-each-ref --format='%(refname:lstrip=2)' "refs/heads/fork/${order%.*}-*" | head -1
   else
     echo origin/main
   fi
