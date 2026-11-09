@@ -8468,6 +8468,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                 .map((run) => run.id),
             ),
           );
+    const mergeBackFinalReply = mergeBackDeltaItems.findLast(
+      (item) => item.type === "assistant_message" && item.runId === mergeBackSourceRun?.id,
+    );
     const mergeBackHandoff =
       pendingMergeBackTransfer === undefined ||
       mergeBackSourceProjection === null ||
@@ -8485,6 +8488,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               fromProviderInstanceId: mergeBackSourceRun.providerInstanceId,
               toProviderInstanceId: modelSelection.instanceId,
               sourceThreadTitle: mergeBackSourceProjection.thread.title,
+              ...(mergeBackFinalReply === undefined ? {} : { finalReply: mergeBackFinalReply }),
               coveredRunOrdinals: visibleDeltaRunOrdinals(
                 mergeBackSourceProjection,
                 mergeBackDeltaItems,

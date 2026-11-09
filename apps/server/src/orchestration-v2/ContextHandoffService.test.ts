@@ -180,6 +180,12 @@ it.layer(layerTest)("ContextHandoffService legacy import", (it) => {
           fromProviderInstanceId: ProviderInstanceId.make("codex"),
           toProviderInstanceId: ProviderInstanceId.make("codex"),
           sourceThreadTitle: "x".repeat(5_000),
+          finalReply: importedItem({
+            role: "assistant",
+            id: "fork-recap",
+            text: "- Recap: dbsync gained an append mode",
+            ordinal: 4,
+          }),
           coveredRunOrdinals: { from: 1, to: 2 },
           createdAt: now,
         });
@@ -209,6 +215,7 @@ it.layer(layerTest)("ContextHandoffService legacy import", (it) => {
 
         assert.include(context, sourceThreadId);
         assert.include(context, "t3_thread_send");
+        assert.include(context, "- Recap: dbsync gained an append mode");
       }),
   );
 });

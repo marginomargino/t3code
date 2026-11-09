@@ -57,7 +57,10 @@ const CodexHistoryReplayHarness: typeof CodexOrchestratorReplayHarness = {
                       ...session,
                       injectHistory: (history) =>
                         Effect.sync(() => {
-                          assert.lengthOf(history.messages, 0);
+                          assert.deepEqual(
+                            history.messages.map((message) => [message.role, message.text]),
+                            [["assistant", expectedForkReply(history.context)]],
+                          );
                           assert.include(history.context, "t3_thread_read");
                           for (const forkText of [
                             THREAD_MERGE_BACK_SIBLINGS_FIRST_FORK_PROMPT,
@@ -80,6 +83,12 @@ const CodexHistoryReplayHarness: typeof CodexOrchestratorReplayHarness = {
       ),
     ),
 };
+
+function expectedForkReply(context: string): string {
+  return context.includes('"First merge-back sibling"')
+    ? "first merge sibling stored"
+    : "second merge sibling stored";
+}
 
 const CLAUDE_MODEL_SELECTION = {
   instanceId: ProviderInstanceId.make("claudeAgent"),
@@ -123,7 +132,7 @@ function readTranscript(scenario: string, driver: ProviderDriverKind) {
 function forkPointer(input: { readonly forkThreadId: ThreadId; readonly title: string }): string {
   return [
     `Fork "${input.title}" (thread ${input.forkThreadId}) was merged back into this thread.`,
-    "Its messages are not included here. When relevant, read the fork with the t3_thread_read tool or ask it with the t3_thread_send tool using that thread id.",
+    "Only its final reply is included below. When relevant, read the fork with the t3_thread_read tool or ask it with the t3_thread_send tool using that thread id.",
   ].join("\n");
 }
 

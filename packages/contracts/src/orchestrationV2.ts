@@ -3762,6 +3762,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getNativeChildWork: "orchestration.getNativeChildWork",
   stopWorkflow: "orchestration.stopWorkflow",
   forceStopThread: "orchestration.forceStopThread",
+  finalizeFork: "orchestration.finalizeFork",
   getTurnItem: "orchestration.getTurnItem",
   launchThread: "orchestration.launchThread",
   subscribeShell: "orchestration.subscribeShell",
@@ -4218,6 +4219,32 @@ export class OrchestrationV2ForceStopThreadError extends Schema.TaggedError<Orch
   }
 }
 
+export const OrchestrationV2FinalizeForkInput = Schema.Struct({
+  threadId: ThreadId,
+});
+export type OrchestrationV2FinalizeForkInput = typeof OrchestrationV2FinalizeForkInput.Type;
+
+export const OrchestrationV2FinalizeForkResult = Schema.Struct({
+  parentThreadId: ThreadId,
+  recapRunId: RunId,
+});
+export type OrchestrationV2FinalizeForkResult = typeof OrchestrationV2FinalizeForkResult.Type;
+
+export class OrchestrationV2FinalizeForkError extends Schema.TaggedError<OrchestrationV2FinalizeForkError>()(
+  "OrchestrationV2FinalizeForkError",
+  {
+    threadId: ThreadId,
+    reason: Schema.Literals(["not_a_fork", "failed"]),
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return this.reason === "not_a_fork"
+      ? "Only a fork can be finalized."
+      : "Failed to finalize the fork.";
+  }
+}
+
 export const OrchestrationV2GetWorkflowScriptInput = Schema.Struct({
   threadId: ThreadId,
   scriptPath: TrimmedNonEmptyString,
@@ -4462,6 +4489,10 @@ export const OrchestrationV2RpcSchemas = {
   forceStopThread: {
     input: OrchestrationV2ForceStopThreadInput,
     output: OrchestrationV2ForceStopThreadResult,
+  },
+  finalizeFork: {
+    input: OrchestrationV2FinalizeForkInput,
+    output: OrchestrationV2FinalizeForkResult,
   },
   getWorkflowScript: {
     input: OrchestrationV2GetWorkflowScriptInput,

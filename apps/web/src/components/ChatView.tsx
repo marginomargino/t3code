@@ -96,10 +96,12 @@ import {
 } from "@t3tools/client-runtime/state/subagentRuntime";
 import {
   getUserQueuedThreadRuns,
+  resolveLatestMergeBackRun,
   threadSteersDuringCompaction,
   threadSupportsProviderHandoff,
 } from "@t3tools/client-runtime/state/thread-workflows";
 import { compactionBlocksSteering } from "@t3tools/client-runtime/state/composer-dispatch";
+import { useFinalizeFork } from "./chat/useFinalizeFork";
 import { resolvePendingHandoff } from "@t3tools/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";
 import {
@@ -2841,6 +2843,21 @@ export default function ChatView(props: ChatViewProps) {
                 : null;
   const openSideChatStable = useStableCallback(() => void sideChat.open());
   const sendSideChatStable = useStableCallback((prompt: string) => sideChat.open(prompt));
+  const { canFinalize, finalizeFork } = useFinalizeFork(environmentId);
+  const finalizeForkRunId =
+    canFinalize &&
+    serverProjection !== null &&
+    activeThread?.lineage.relationshipToParent === "fork"
+      ? (resolveLatestMergeBackRun(serverProjection)?.id ?? null)
+      : null;
+  const finalizeForkThreadId = activeThread?.id ?? null;
+  const onFinalizeForkStable = useStableCallback(() =>
+    finalizeForkThreadId === null ? Promise.resolve() : finalizeFork(finalizeForkThreadId),
+  );
+  const finalizeForkAction =
+    finalizeForkRunId === null
+      ? null
+      : { runId: finalizeForkRunId, onFinalize: onFinalizeForkStable };
   const { onConfirmRevertStable, onForkFromRunStable, onRevertTimelineTurnStable } =
     useTimelineRewind({
       environmentId,
@@ -3481,7 +3498,11 @@ export default function ChatView(props: ChatViewProps) {
                   // Side chat runs keep no checkpoints to diff, and a fork would promote the side chat.
                   {...(embedded
                     ? {}
-                    : { onOpenTurnDiff: onOpenTurnDiffStable, onForkFromRun: onForkFromRunStable })}
+                    : {
+                        onOpenTurnDiff: onOpenTurnDiffStable,
+                        onForkFromRun: onForkFromRunStable,
+                        finalizeFork: finalizeForkAction,
+                      })}
                   onOpenThread={onOpenRelatedThreadStable}
                   parentThreadLink={parentThreadLink}
                   workflowOpening={workflowOpening}
