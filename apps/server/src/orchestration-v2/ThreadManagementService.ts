@@ -1238,6 +1238,24 @@ const make = Effect.gen(function* () {
           runId: sent.run.id,
         });
       }
+      // Merge back refuses while the parent works or has a queue, so wait those runs out.
+      while (true) {
+        const { runs } = yield* orchestrator.getThreadRecords(parentThreadId, ["runs"]);
+        const busy = runs.find((run) => isActiveRun(run) || run.status === "queued");
+        if (busy === undefined) break;
+        const parentWait = yield* waitForThread({
+          projectId: thread.projectId,
+          threadId: parentThreadId,
+          runId: busy.id,
+          timeoutMs: FINALIZE_FORK_WAIT_MS,
+        });
+        if (parentWait.timedOut) {
+          return yield* Effect.logWarning("Fork finalize stopped: the parent thread stayed busy", {
+            threadId: input.threadId,
+            parentThreadId,
+          });
+        }
+      }
       yield* dispatch({
         type: "thread.merge_back",
         commandId: CommandId.make(`${key}:merge-back`),
