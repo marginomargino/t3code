@@ -66,6 +66,8 @@ export interface ContextHandoffServiceV2Shape {
     readonly fromProviderInstanceId: ProviderInstanceId;
     readonly toProviderInstanceId: ProviderInstanceId;
     readonly sourceThreadTitle: string;
+    /** The fork's last reply at the merge point, such as a Finalize recap. */
+    readonly finalReply?: OrchestrationV2TurnItem;
     readonly coveredRunOrdinals: OrchestrationV2ContextHandoff["coveredRunOrdinals"];
     readonly createdAt: DateTime.Utc;
   }) => Effect.Effect<OrchestrationV2ContextHandoff, ContextHandoffServiceV2Error>;
@@ -253,6 +255,7 @@ function summarizeDeltaItem(item: OrchestrationV2TurnItem): string | null {
 function makeForkMergePointer(input: {
   readonly sourceThreadId: ThreadId;
   readonly sourceThreadTitle: string;
+  readonly hasFinalReply: boolean;
 }): string {
   // Delivery replaces oversized coverage with a generic note, which would drop the fork id.
   const title =
@@ -261,7 +264,9 @@ function makeForkMergePointer(input: {
       : input.sourceThreadTitle;
   return [
     `Fork "${title}" (thread ${input.sourceThreadId}) was merged back into this thread.`,
-    "Its messages are not included here. When relevant, read the fork with the t3_thread_read tool or ask it with the t3_thread_send tool using that thread id.",
+    input.hasFinalReply
+      ? "Only its final reply is included below. When relevant, read the fork with the t3_thread_read tool or ask it with the t3_thread_send tool using that thread id."
+      : "Its messages are not included here. When relevant, read the fork with the t3_thread_read tool or ask it with the t3_thread_send tool using that thread id.",
   ].join("\n");
 }
 
@@ -445,6 +450,7 @@ const makeContextHandoffService = Effect.fn("orchestrationV2.ContextHandoffServi
         readonly fromProviderInstanceId: ProviderInstanceId;
         readonly toProviderInstanceId: ProviderInstanceId;
         readonly sourceThreadTitle: string;
+        readonly finalReply?: OrchestrationV2TurnItem;
         readonly coveredRunOrdinals: OrchestrationV2ContextHandoff["coveredRunOrdinals"];
         readonly createdAt: DateTime.Utc;
       }) {
@@ -466,7 +472,9 @@ const makeContextHandoffService = Effect.fn("orchestrationV2.ContextHandoffServi
                 }),
             ),
           );
-        const pointer = makeForkMergePointer(input);
+        const finalReply =
+          input.finalReply === undefined ? null : historicalMessage(input.finalReply);
+        const pointer = makeForkMergePointer({ ...input, hasFinalReply: finalReply !== null });
         return {
           id: handoffId,
           transferId: input.transferId,
@@ -479,7 +487,11 @@ const makeContextHandoffService = Effect.fn("orchestrationV2.ContextHandoffServi
           status: "ready",
           summaryMessageId: null,
           summaryText: pointer,
-          history: { messages: [], coverage: pointer, omittedItems: 0 },
+          history: {
+            messages: finalReply === null ? [] : [finalReply],
+            coverage: pointer,
+            omittedItems: 0,
+          },
           createdByProviderInstanceId: null,
           createdAt: input.createdAt,
           updatedAt: input.createdAt,

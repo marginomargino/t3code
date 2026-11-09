@@ -9543,6 +9543,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             });
             return visibleConversationItems(mergeBackSourceProjection, turnItems);
           });
+    const mergeBackFinalReply = mergeBackDeltaItems.findLast(
+      (item) => item.type === "assistant_message" && item.runId === mergeBackSourceRun?.id,
+    );
     const mergeBackHandoff =
       pendingMergeBackTransfer === undefined ||
       mergeBackSourceProjection === null ||
@@ -9560,6 +9563,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               fromProviderInstanceId: mergeBackSourceRun.providerInstanceId,
               toProviderInstanceId: modelSelection.instanceId,
               sourceThreadTitle: mergeBackSourceProjection.thread.title,
+              ...(mergeBackFinalReply === undefined ? {} : { finalReply: mergeBackFinalReply }),
               coveredRunOrdinals: visibleDeltaRunOrdinals(
                 mergeBackSourceProjection,
                 mergeBackDeltaItems,
