@@ -199,7 +199,9 @@ export const layer = McpToolAccess.toLayer(EnvironmentToolkit, {
             { patch, providerInstanceMutation },
             caller?.projectId,
           );
-          return yield* Settings.applyClientSettingsUpdate(settings, update, { secretReferences: true }).pipe(
+          return yield* Settings.applyClientSettingsUpdate(settings, update, {
+            secretReferences: true,
+          }).pipe(
             Effect.mapError((error) =>
               rejected(
                 error,
