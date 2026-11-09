@@ -36,8 +36,10 @@ import {
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   type EnvironmentId,
   type ModelSelection,
+  type ProviderInteractionMode,
   type RuntimeMode,
   type ScopedThreadRef,
+  type ServerProvider,
   type ThreadId,
 } from "@t3tools/contracts";
 
@@ -64,6 +66,7 @@ import {
   describeUnavailableModelSelection,
   isModelSelectionUnavailable,
 } from "../lib/modelOptions";
+import { resolveProviderInteractionMode } from "./legacy-plan-mode";
 
 import {
   type DraftComposerImageAttachment,
@@ -222,6 +225,18 @@ export function useThreadDraftForThread(input: {
   };
 }
 
+/** A provider without the interaction-mode toggle runs in the default mode. */
+export function resetThreadDraftInteractionModeForModel(
+  threadKey: string,
+  value: ModelSelection,
+  providers: ReadonlyArray<ServerProvider>,
+): void {
+  const provider = providers.find((candidate) => candidate.instanceId === value.instanceId);
+  if (provider?.showInteractionModeToggle === false) {
+    updateComposerDraftSettings(threadKey, { interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE });
+  }
+}
+
 export function useThreadComposerState(input: {
   /** Forks the thread into a side chat that gets `message`; resolves false when it did not start. */
   readonly startSideChat: (
@@ -358,8 +373,15 @@ export function useThreadComposerState(input: {
     serverConfig?.providers ?? [],
   );
   const runtimeMode = threadDraftSettings.runtimeMode ?? selectedThread?.runtimeMode ?? null;
-  // Plan mode is not offered to users; every send runs in build mode.
-  const interactionMode = selectedThread ? DEFAULT_PROVIDER_INTERACTION_MODE : null;
+  const selectedProvider = selectedEnvironmentRuntime?.serverConfig?.providers.find(
+    (provider) => provider.instanceId === modelSelection?.instanceId,
+  );
+  const interactionMode = selectedThread
+    ? resolveProviderInteractionMode(
+        selectedProvider,
+        threadDraftSettings.interactionMode ?? selectedThread.interactionMode,
+      )
+    : null;
   const canSwitchThreadProvider = threadAllowsProviderSwitch({
     thread: selectedThreadShell,
     projection: selectedThreadProjection?.projection,
@@ -912,7 +934,10 @@ export function useThreadComposerState(input: {
       context: draft.context,
       modelSelection,
       runtimeMode: draft.runtimeMode ?? thread.runtimeMode,
-      interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+      interactionMode: resolveProviderInteractionMode(
+        provider,
+        draft.interactionMode ?? thread.interactionMode,
+      ),
       ...(compactBeforeSend
         ? { compactBeforeSend, dispatchMode: "queue" as const }
         : followUpDispatchMode === null
@@ -1046,6 +1071,20 @@ export function useThreadComposerState(input: {
     removeComposerDraftAttachment(threadKey, imageId);
   };
 
+  const onUpdateInteractionMode = (value: ProviderInteractionMode) => {
+    if (!selectedThreadKey) {
+      return;
+    }
+    const modelSelection =
+      getComposerDraftSnapshot(selectedThreadKey).modelSelection ?? selectedThread?.modelSelection;
+    const provider = selectedEnvironmentRuntime?.serverConfig?.providers.find(
+      (candidate) => candidate.instanceId === modelSelection?.instanceId,
+    );
+    updateComposerDraftSettings(selectedThreadKey, {
+      interactionMode: resolveProviderInteractionMode(provider, value),
+    });
+  };
+
   return {
     feedbackSubmissions,
     dismissFeedback,
@@ -1096,6 +1135,7 @@ export function useThreadComposerState(input: {
     onRemoveDraftImage,
     onSendMessage,
     onSendCommand,
+    onUpdateInteractionMode,
     sideChatUnavailableReason,
   };
 }

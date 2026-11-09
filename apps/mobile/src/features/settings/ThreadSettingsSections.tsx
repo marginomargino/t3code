@@ -66,6 +66,7 @@ export function SettingsLabsRouteScreen() {
           )}
         />
         <AgentFeedbackSection />
+        <LegacySettingsSection />
       </ScrollView>
     </SettingsScreen>
   );
@@ -411,6 +412,30 @@ function MachineBetaSection({
         })}
       </SettingsSection>
       <Text className="px-2 text-sm text-foreground-muted">{description}</Text>
+    </View>
+  );
+}
+
+function LegacySettingsSection() {
+  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const preferences = useAtomValue(mobilePreferencesAtom);
+  const planModeEnabled =
+    AsyncResult.isSuccess(preferences) && preferences.value.planModeEnabled === true;
+
+  return (
+    <View className="gap-3">
+      <SettingsSection title="Legacy">
+        <SettingsSwitchRow
+          icon="hammer"
+          label="Plan Mode"
+          value={planModeEnabled}
+          onValueChange={(value) => savePreferences({ planModeEnabled: value })}
+        />
+      </SettingsSection>
+      <Text className="px-2 text-sm text-foreground-muted">
+        Opt into retired interfaces kept for compatibility. Plan Mode restores the Build/Plan
+        control; otherwise every task runs in Build mode.
+      </Text>
     </View>
   );
 }

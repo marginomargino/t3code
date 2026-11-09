@@ -129,7 +129,7 @@ If you stop the agent or the server restarts, queued messages pause in order. Cl
 Type `/` for commands or `$` for skills from the selected environment and provider.
 
 - Skills also appear in the `/` menu unless you disable **Settings → Chat → Show skills in slash menu** (under Advanced).
-- Provider commands must start the message; T3 Code commands (like `/model`) and `$` skills work on any line.
+- Provider commands must start the message; T3 Code commands (like `/model` and `/plan`) and `$` skills work on any line.
 - `/compact` reduces context usage when supported by the provider.
 - `/clear` starts a fresh provider session in the same thread (earlier messages and diffs stay visible above a **New session** divider).
 - After adding or changing skills, plugins, or MCP servers, run **Restart agent session** from the command palette so your next message picks up the new config.

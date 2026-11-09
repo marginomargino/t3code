@@ -28,7 +28,7 @@ API keys are stored outside `settings.json`, and ambient `GEMINI_API_KEY` / Goog
 ## Models, planning, and goals
 
 - Models (including Claude and GPT when included in your plan) and thinking levels come from your Antigravity account.
-- Use `/plan` for planning, `/compact` to summarize (if supported by your runtime), or `/clear` for a fresh session.
+- Use `/plan` for planning, `/compact` to summarize (if supported by your runtime), or `/clear` for a fresh session. T3 Code's separate Plan mode is unavailable.
 - **Edit from here** starts a fresh Antigravity session with the kept conversation history.
 - **Native goals**: Send `/goal <objective>` when supported by your runtime. Use **Stop** to interrupt, then tell Antigravity to stop pursuing it before starting new work (`pause`/`resume`/`clear` are not supported).
 - **Subagents**: Batched subagent activity is inspectable read-only via **Subagent work** (**Work** on mobile).
