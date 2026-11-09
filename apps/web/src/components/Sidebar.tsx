@@ -123,6 +123,7 @@ import {
   useThreadActions,
 } from "../hooks/useThreadActions";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
+import { useRestartAgentSession } from "../hooks/useRestartAgentSession";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
 import { useProjectPin } from "../hooks/useProjectGroupUpdate";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
@@ -935,6 +936,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     archiveThread,
     deleteThread,
   } = useThreadActions();
+  const restartAgentSession = useRestartAgentSession();
   const updateThreadMetadata = useOrchestrationCommand(threadEnvironment.updateMetadata, {
     reportFailure: false,
   });
@@ -2807,6 +2809,19 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           }
           case "mark-unread":
             markThreadUnread(threadRef);
+            return;
+          case "restart-session":
+            try {
+              await restartAgentSession(threadRef);
+            } catch (error) {
+              toastManager.add(
+                stackedThreadToast({
+                  type: "error",
+                  title: "Failed to restart agent session",
+                  description: error instanceof Error ? error.message : "An error occurred.",
+                }),
+              );
+            }
             return;
           case "copy-path":
             if (!threadWorkspacePath) {
