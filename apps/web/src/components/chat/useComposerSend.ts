@@ -1666,7 +1666,8 @@ export function useComposerSend(input: ComposerSendInput) {
         },
         modelSelection: sendCtx.selectedModelSelection,
         runtimeMode,
-        interactionMode: DEFAULT_INTERACTION_MODE,
+        // A literal, not DEFAULT_INTERACTION_MODE: fork/59's merge drops that import here.
+        interactionMode: "default",
         dispatchMode,
         createdAt,
       },
