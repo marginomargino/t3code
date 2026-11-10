@@ -232,7 +232,7 @@ function selectOpenCodeRuntimeTextGeneration(
         v2: v2.generateTranscriptionPostProcessing(input),
       }),
     findThreads: (input) =>
-      byOpenCodeRuntime(probe.get, {
+      byOpenCodeRuntime(resolve, {
         v1: v1.findThreads(input),
         v2: v2.findThreads(input),
       }),
