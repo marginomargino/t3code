@@ -52,8 +52,30 @@ echo "fork/main rebuilt: $(git rev-parse --short HEAD)"
 # Release fork/main so the main checkout can switch back to it.
 git switch --detach
 
+# Typecheck every package on its own: a clean merge can still drop an import another branch
+# needs, and `check:changed` stops reporting at the first failing package.
+vp=$(command -v vp || echo "$HOME/.local/share/vite-plus/bin/vp")
+"$vp" i >/dev/null
+failed=()
+for pkg in apps/*/package.json packages/*/package.json; do
+  dir=${pkg%/package.json}
+  # Some packages (web, desktop) declare the task in vite.config.ts instead of package.json.
+  grep -q '"typecheck"' "$pkg" || grep -qsE '^\s*typecheck\s*:' "$dir/vite.config.ts" || continue
+  log="${TMPDIR:-/tmp}/fork-sync-typecheck-${dir//\//-}.log"
+  if ! (cd "$dir" && "$vp" run typecheck >"$log" 2>&1); then
+    failed+=("$dir ($log)")
+  fi
+done
+
 # Publishing stays a deliberate step: print the push, never run it.
 # Rebased branches need the lease; --prune drops fork/* branches deleted here.
 if git remote get-url fork >/dev/null 2>&1; then
   echo "publish: git push --force-with-lease --prune fork main fork-meta 'refs/heads/fork/*:refs/heads/fork/*'"
 fi
+
+if ((${#failed[@]})); then
+  echo "typecheck FAILED in ${#failed[@]} package(s); fix on the owning fork/* branch before publishing:" >&2
+  printf '  %s\n' "${failed[@]}" >&2
+  exit 1
+fi
+echo "typecheck passed in every package"
