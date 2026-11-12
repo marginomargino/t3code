@@ -50,8 +50,8 @@ interface ComposerPrimaryActionsProps {
   followUpBehavior?: "queue" | "steer";
   canSteer?: boolean;
   alternateShortcutLabel?: string | null;
-  showPlanFollowUpPrompt: boolean;
-  promptHasText: boolean;
+  showPlanFollowUpPrompt?: boolean;
+  promptHasText?: boolean;
   /** Dictation is running; Send finishes it and submits once the transcript lands. */
   voiceInputActive?: boolean;
   isSendBusy: boolean;
@@ -66,7 +66,7 @@ interface ComposerPrimaryActionsProps {
   onResume?: () => void;
   onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
-  onImplementPlanInNewThread: () => void;
+  onImplementPlanInNewThread?: () => void;
   compactBeforeSendTokens?: number | null;
   hideCompactToggle?: boolean;
   keepFullHistory?: boolean;
@@ -236,8 +236,8 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   followUpBehavior = "steer",
   canSteer = true,
   alternateShortcutLabel = null,
-  showPlanFollowUpPrompt,
-  promptHasText,
+  showPlanFollowUpPrompt = false,
+  promptHasText = false,
   voiceInputActive = false,
   isSendBusy,
   sendDisabledReason,
@@ -411,7 +411,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
               <MenuItem
                 disabled={isSendBusy || isSendDisabled || isEnvironmentUnavailable}
                 onClick={() => {
-                  if (canOperateThread) onImplementPlanInNewThread();
+                  if (canOperateThread) onImplementPlanInNewThread?.();
                 }}
               >
                 Implement in a new thread
