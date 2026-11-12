@@ -886,6 +886,35 @@ const resolveGitCommitHash = Effect.fn("resolveGitCommitHash")(function* (repoRo
   return hash.toLowerCase();
 });
 
+// electron-builder matches mac.identity by substring and prefers Developer ID lines, so pass the
+// exact certificate's SHA-1 rather than its name.
+export function findCodeSigningIdentityHash(findIdentityOutput: string, name: string) {
+  for (const line of findIdentityOutput.split("\n")) {
+    const match = /^\s*\d+\)\s+([0-9A-F]{40})\s+"(.*)"$/.exec(line);
+    if (match?.[2] === name) return match[1];
+  }
+  return undefined;
+}
+
+// A stable self-signed identity keeps the designated requirement equal across local rebuilds, so
+// keychain "Always Allow" grants (Electron safe storage) survive them; ad-hoc signatures do not.
+const resolveMacLocalSigningIdentity = Effect.fn("resolveMacLocalSigningIdentity")(function* () {
+  const identity = yield* Config.NonEmptyString("T3CODE_MAC_LOCAL_SIGNING_IDENTITY").pipe(
+    Config.option,
+  );
+  if (Option.isNone(identity)) return undefined;
+  const result = yield* spawnAndCollectOutput(
+    ChildProcess.make("/usr/bin/security", ["find-identity", "-v", "-p", "codesigning"]),
+  ).pipe(Effect.orElseSucceed(() => ({ stdout: "", stderr: "", exitCode: 1 })));
+  const hash =
+    result.exitCode === 0 ? findCodeSigningIdentityHash(result.stdout, identity.value) : undefined;
+  if (hash) return hash;
+  yield* Effect.logWarning(
+    `[desktop-artifact] No valid code signing identity "${identity.value}" in the keychain; building unsigned.`,
+  );
+  return undefined;
+});
+
 const resolvePythonForNodeGyp = Effect.fn("resolvePythonForNodeGyp")(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -2783,6 +2812,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     | undefined,
   wslRuntimeBundled = false,
   arch?: typeof BuildArch.Type,
+  macLocalSigningIdentity?: string,
 ) {
   const buildConfig: Record<string, unknown> = {
     afterPack: (yield* Path.Path).join(yield* RepoRoot, "scripts/prepare-server-compile-cache.cjs"),
@@ -2877,6 +2907,15 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         },
       ],
       ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
+      // Self-signed identities have no team ID for library validation or Apple's timestamp server.
+      ...(!signed && macLocalSigningIdentity
+        ? {
+            identity: macLocalSigningIdentity,
+            hardenedRuntime: false,
+            timestamp: "none",
+            notarize: false,
+          }
+        : {}),
       ...(macPasskeySigning
         ? {
             entitlements: macPasskeySigning.entitlementsPath,
@@ -3692,6 +3731,10 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     branch: Config.String("T3CODE_LOCAL_REBUILD_BRANCH").pipe(Config.withDefault("fork/main")),
     releaseDir: Config.NonEmptyString("T3CODE_LOCAL_REBUILD_RELEASE_DIR").pipe(Config.option),
   });
+  const macLocalSigningIdentity =
+    options.platform === "mac" && !options.signed
+      ? yield* resolveMacLocalSigningIdentity()
+      : undefined;
   const mkdir = options.keepStage ? fs.makeTempDirectory : fs.makeTempDirectoryScoped;
   const stageRoot = yield* mkdir({
     prefix: `t3code-desktop-${options.platform}-stage-`,
@@ -3949,6 +3992,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
         : undefined,
       bundlesWslRuntime({ platform: options.platform, runtimeArchivePath: options.wslRuntime }),
       options.arch,
+      macLocalSigningIdentity,
     ),
     dependencies: stageDependencies,
     devDependencies: {

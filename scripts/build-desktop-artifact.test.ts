@@ -29,6 +29,7 @@ import {
   parseWslRuntimeArchiveMembers,
   readWorkspaceConfig,
   createBuildConfig,
+  findCodeSigningIdentityHash,
   DESKTOP_FILE_EXCLUSIONS,
   InvalidMacPasskeyRpDomainError,
   InvalidMacPasskeyPublishableKeyError,
@@ -568,6 +569,47 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       assert.nestedPropertyVal(linux, "linux.desktop.entry.StartupWMClass", "com.t3tools.T3Code");
     }),
   );
+
+  it.effect("signs unsigned macOS builds with a local identity only when one is given", () =>
+    Effect.gen(function* () {
+      const build = (signed: boolean, identity?: string) =>
+        createBuildConfig(
+          "mac",
+          "zip",
+          "0.1.0",
+          signed,
+          false,
+          undefined,
+          undefined,
+          false,
+          "arm64",
+          identity,
+        ).pipe(Effect.map((config) => config.mac as Record<string, unknown>));
+      const local = yield* build(false, "T3 Local Signing");
+      assert.strictEqual(local.identity, "T3 Local Signing");
+      assert.strictEqual(local.hardenedRuntime, false);
+      assert.strictEqual(local.timestamp, "none");
+      assert.strictEqual(local.notarize, false);
+      assert.notProperty(yield* build(false), "identity");
+      assert.notProperty(yield* build(true, "T3 Local Signing"), "identity");
+    }),
+  );
+
+  it("finds a local signing identity's hash only by its exact name", () => {
+    const output = [
+      '  1) 1111111111111111111111111111111111111111 "Developer ID Application: T3 Tools (ARK85ZXQ4Z)"',
+      '  2) 5DEB4B95CE4C6010710AF8C3F2FF0C8D8434B7FD "T3 Local Signing"',
+      "     2 valid identities found",
+    ].join("\n");
+    assert.strictEqual(
+      findCodeSigningIdentityHash(output, "T3 Local Signing"),
+      "5DEB4B95CE4C6010710AF8C3F2FF0C8D8434B7FD",
+    );
+    assert.isUndefined(findCodeSigningIdentityHash(output, "T3"));
+    assert.isUndefined(
+      findCodeSigningIdentityHash("     0 valid identities found", "T3 Local Signing"),
+    );
+  });
 
   it.effect("declares Calendar access for hosted commands in macOS builds", () =>
     Effect.gen(function* () {
