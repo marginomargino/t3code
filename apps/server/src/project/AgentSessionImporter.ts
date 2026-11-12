@@ -616,7 +616,6 @@ const make = Effect.gen(function* () {
     return yield* commit(messages);
   });
 
-
   const projectForCwd = (cwd: string) =>
     projects.getByWorkspaceRoot(cwd).pipe(
       Effect.catch((cause) =>
