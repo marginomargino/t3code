@@ -2856,6 +2856,7 @@ describe("ClaudeAdapterV2 native fork", () => {
                 return { sessionId: "forked-native-session" };
               }),
             subagentLaunchToolUseId: () => Effect.succeed(null),
+            subagentModel: () => Effect.succeed(null),
             assertComplete: Effect.void,
           },
         });
