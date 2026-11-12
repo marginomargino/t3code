@@ -1630,6 +1630,7 @@ describe("ClaudeAdapterV2 artifact tools", () => {
         Layer.mergeAll(
           IdAllocator.layer,
           McpProviderSessions.layer,
+          ProviderInstallationGate.layer,
           NodeServices.layer,
           NodeCrypto.layer,
         ),
