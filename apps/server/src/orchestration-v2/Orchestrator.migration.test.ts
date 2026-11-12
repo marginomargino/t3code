@@ -17,6 +17,7 @@ it("reissues imported context until a V2 run completes", () => {
       hasCompletedRun: false,
       legacyImportItemCount: 2,
       hasNativeHistory: true,
+      continuesNativeThread: false,
     }),
   );
   assert.isFalse(

@@ -2146,8 +2146,8 @@ export const make = Effect.gen(function* () {
   )(function* (query) {
     const needle = query.trim().toLowerCase();
     if (needle.length === 0) return [];
-    const { candidates } = yield* collectCandidates();
-    cachedCandidates = candidates;
+    cachedCandidates = yield* collectCandidates();
+    const { candidates } = cachedCandidates;
     const byId = CLAUDE_SESSION_ID_PATTERN.test(needle);
     const transcripts = candidates
       .filter((candidate) => candidate.source === "claudeAgent")
@@ -2202,6 +2202,7 @@ export const make = Effect.gen(function* () {
       },
       snapshot.records,
       snapshot.claudeFields,
+      snapshot.droppedMessageCount,
     );
     if (thread === null) return null;
     return {
