@@ -13257,7 +13257,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 const transcript = yield* claudeTranscriptState(nativeThreadId).pipe(
                   Effect.orElseSucceed(() => "missing" as const),
                 );
-                if (transcript === "empty") {
+                // An imported thread was never opened by T3; without its transcript only the fallback summary carries its history.
+                const neverOpened =
+                  threadInput.providerThread.providerSessionId === null &&
+                  threadInput.providerThread.firstRunOrdinal === null;
+                if (transcript === "empty" || (transcript === "missing" && neverOpened)) {
                   return yield* new ProviderAdapter.ProviderAdapterProtocolError({
                     driver: CLAUDE_PROVIDER,
                     detail: `Claude session ${nativeThreadId} has no conversation to resume.`,

@@ -86,6 +86,13 @@ const MAX_IMPORT_HISTORY_BYTES = 32 * 1024 * 1024;
 const MAX_IMPORT_BYTES = 4 * 1024 * 1024 * 1024;
 const MAX_IMPORT_TRANSCRIPTS = 100;
 const MAX_IMPORT_RECORDS = 100_000;
+// Claude re-appends title records as a session runs, so the tail carries the current one.
+const CLAUDE_TITLE_HEAD_BYTES = 64 * 1024;
+const CLAUDE_TITLE_TAIL_BYTES = 256 * 1024;
+const MAX_CLAUDE_SESSION_MATCHES = 20;
+
+export const CLAUDE_SESSION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * open() of a file under macOS privacy protection waits on a consent prompt
@@ -221,6 +228,15 @@ export type AgentSessionRecentThread =
   | { readonly _tag: "Duplicate"; readonly source: AgentSessionImportSource }
   | { readonly _tag: "Skipped" };
 
+export interface ClaudeSessionMatch {
+  readonly sessionId: string;
+  readonly title: string;
+  readonly cwd: string;
+  readonly filePath: string;
+  readonly providerInstanceId: ProviderInstanceId;
+  readonly mtimeMs: number;
+}
+
 export class AgentSessionScanner extends Context.Service<
   AgentSessionScanner,
   {
@@ -229,6 +245,15 @@ export class AgentSessionScanner extends Context.Service<
       workspaceRoot: string,
       completedSources?: ReadonlyArray<AgentSessionImportSource>,
     ) => Stream.Stream<AgentSessionRecentThread, AgentSessionScanError>;
+    /** Matches a session ID exactly, or a title substring; newest first, one per session. */
+    readonly findClaudeSessions: (
+      query: string,
+    ) => Effect.Effect<ReadonlyArray<ClaudeSessionMatch>, AgentSessionScanError>;
+    /** Reads one session regardless of age; null when it is unreadable or has no conversation. */
+    readonly readClaudeSession: (match: ClaudeSessionMatch) => Effect.Effect<{
+      readonly thread: AgentSessionThread;
+      readonly source: AgentSessionImportSource;
+    } | null>;
   }
 >()("t3/project/AgentSessionScanner") {}
 
@@ -2074,7 +2099,129 @@ export const make = Effect.gen(function* () {
     completedSources = [],
   ) => Stream.unwrap(prepareRecentThreads(workspaceRoot, completedSources));
 
-  return AgentSessionScanner.of({ scan, recentThreads });
+  const readClaudeSessionTitle = (filePath: string) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const file = yield* fileSystem.open(filePath, { flag: "r" });
+        const size = Number((yield* file.stat).size);
+        const chunks = [yield* file.readAlloc(Math.min(CLAUDE_TITLE_HEAD_BYTES, size))];
+        const tailStart = Math.max(size - CLAUDE_TITLE_TAIL_BYTES, CLAUDE_TITLE_HEAD_BYTES);
+        if (tailStart < size) {
+          yield* file.seek(BigInt(tailStart), "start");
+          chunks.push(yield* file.readAlloc(size - tailStart));
+        }
+        // Lines cut at a chunk edge fail to decode and drop out.
+        const records = chunks.flatMap((chunk) =>
+          Option.match(chunk, {
+            onNone: () => [],
+            onSome: (bytes) =>
+              new TextDecoder()
+                .decode(bytes)
+                .split("\n")
+                .flatMap((line) => Option.toArray(decodeTranscriptRecord(line))),
+          }),
+        );
+        const fields = records.reduce(foldClaudeFields, emptyClaudeFields);
+        const firstPrompt = records.find(
+          (record) =>
+            !isHiddenClaudeRecord(record) &&
+            record.type === "user" &&
+            extractText(record.message?.content).length > 0,
+        );
+        const title =
+          fields.customTitle ??
+          fields.title ??
+          (firstPrompt === undefined
+            ? undefined
+            : deriveTitle("claudeAgent", extractText(firstPrompt.message?.content)));
+        return {
+          sessionId: fields.sessionId ?? path.basename(filePath, ".jsonl"),
+          title: title ?? "Untitled session",
+        };
+      }),
+    ).pipe(Effect.orElseSucceed(() => null));
+
+  const findClaudeSessions: AgentSessionScanner["Service"]["findClaudeSessions"] = Effect.fn(
+    "AgentSessionScanner.findClaudeSessions",
+  )(function* (query) {
+    const needle = query.trim().toLowerCase();
+    if (needle.length === 0) return [];
+    cachedCandidates = yield* collectCandidates();
+    const { candidates } = cachedCandidates;
+    const byId = CLAUDE_SESSION_ID_PATTERN.test(needle);
+    const transcripts = candidates
+      .filter((candidate) => candidate.source === "claudeAgent")
+      .flatMap((candidate) =>
+        candidate.transcripts.map((transcript) => ({
+          ...transcript,
+          cwd: candidate.cwd,
+          providerInstanceId: candidate.providerInstanceId,
+        })),
+      )
+      .filter(
+        (transcript) =>
+          !byId || path.basename(transcript.filePath, ".jsonl").toLowerCase() === needle,
+      )
+      .toSorted((left, right) => (right.mtimeMs ?? 0) - (left.mtimeMs ?? 0));
+    const matches: Array<ClaudeSessionMatch> = [];
+    const seen = new Set<string>();
+    for (const transcript of transcripts) {
+      if (matches.length === MAX_CLAUDE_SESSION_MATCHES) break;
+      const summary = yield* readClaudeSessionTitle(transcript.filePath);
+      if (summary === null || seen.has(summary.sessionId)) continue;
+      if (!byId && !summary.title.toLowerCase().includes(needle)) continue;
+      seen.add(summary.sessionId);
+      matches.push({
+        ...summary,
+        cwd: expandHomePath(transcript.cwd.trim(), homeDir),
+        filePath: transcript.filePath,
+        providerInstanceId: transcript.providerInstanceId,
+        mtimeMs: transcript.mtimeMs ?? 0,
+      });
+    }
+    return matches;
+  });
+
+  const readClaudeSession: AgentSessionScanner["Service"]["readClaudeSession"] = Effect.fn(
+    "AgentSessionScanner.readClaudeSession",
+  )(function* (match) {
+    const stats = yield* statOption(match.filePath);
+    if (Option.isNone(stats) || stats.value.type !== "File") return null;
+    const identity = transcriptIdentity(match.filePath, stats.value);
+    // One explicitly chosen session keeps only the per-transcript byte and memory limits.
+    const snapshot = yield* readTranscript(match.filePath, identity, "claudeAgent").pipe(
+      importReadLock.withPermits(1),
+    );
+    if (snapshot === null) return null;
+    const thread = parseAgentSessionRecords(
+      {
+        source: "claudeAgent",
+        providerInstanceId: match.providerInstanceId,
+        fallbackSessionId: path.basename(match.filePath, ".jsonl"),
+        lastActiveAtMs: identity.mtimeMs ?? match.mtimeMs,
+      },
+      snapshot.records,
+      snapshot.claudeFields,
+      snapshot.droppedMessageCount,
+    );
+    if (thread === null) return null;
+    return {
+      thread,
+      source: {
+        ...identity,
+        provider: thread.source,
+        providerInstanceId: thread.providerInstanceId,
+        providerSessionId: thread.providerSessionId,
+      },
+    };
+  });
+
+  return AgentSessionScanner.of({
+    scan,
+    recentThreads,
+    findClaudeSessions,
+    readClaudeSession,
+  });
 });
 
 export const layer = Layer.effect(AgentSessionScanner, make).pipe(
