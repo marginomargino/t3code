@@ -11,6 +11,7 @@ import {
   ClientSettingsSchema,
   ClientSettingsPatch,
   ClaudeSettings,
+  compactsOnReturn,
   DEFAULT_SERVER_SETTINGS,
   globalIdleCompaction,
   idleCompactionPatch,
@@ -249,6 +250,17 @@ describe("custom model settings", () => {
       "bare-slug",
       { slug: "named", name: "Named", capabilities },
     ]);
+  });
+});
+
+describe("compactsOnReturn", () => {
+  it.each([
+    ["onReturn", true],
+    ["default", true],
+    ["beforeCacheExpires", false],
+    ["off", false],
+  ] as const)("%s → %s", (mode, expected) => {
+    expect(compactsOnReturn(mode)).toBe(expected);
   });
 });
 
