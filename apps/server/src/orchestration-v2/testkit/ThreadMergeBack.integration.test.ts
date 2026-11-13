@@ -57,23 +57,18 @@ const CodexHistoryReplayHarness: typeof CodexOrchestratorReplayHarness = {
                       ...session,
                       injectHistory: (history) =>
                         Effect.sync(() => {
-                          const userTexts = history.messages
-                            .filter((message) => message.role === "user")
-                            .map((message) => message.text);
-                          assert.lengthOf(userTexts, 1);
-                          assert.include(
-                            [
-                              THREAD_MERGE_BACK_SIBLINGS_FIRST_FORK_PROMPT,
-                              THREAD_MERGE_BACK_SIBLINGS_SECOND_FORK_PROMPT,
-                            ],
-                            userTexts[0],
+                          assert.deepEqual(
+                            history.messages.map((message) => [message.role, message.text]),
+                            [["assistant", expectedForkReply(history.context)]],
                           );
-                          assert.isTrue(
-                            history.messages.some(
-                              (message) =>
-                                message.role === "assistant" && message.text.includes("stored"),
-                            ),
-                          );
+                          assert.include(history.context, "t3_thread_read");
+                          for (const forkText of [
+                            THREAD_MERGE_BACK_SIBLINGS_FIRST_FORK_PROMPT,
+                            THREAD_MERGE_BACK_SIBLINGS_SECOND_FORK_PROMPT,
+                            "merge sibling stored",
+                          ]) {
+                            assert.notInclude(history.context, forkText);
+                          }
                           return true;
                         }),
                     })),
@@ -88,6 +83,12 @@ const CodexHistoryReplayHarness: typeof CodexOrchestratorReplayHarness = {
       ),
     ),
 };
+
+function expectedForkReply(context: string): string {
+  return context.includes('"First merge-back sibling"')
+    ? "first merge sibling stored"
+    : "second merge sibling stored";
+}
 
 const CLAUDE_MODEL_SELECTION = {
   instanceId: ProviderInstanceId.make("claudeAgent"),
@@ -128,27 +129,10 @@ function readTranscript(scenario: string, driver: ProviderDriverKind) {
   });
 }
 
-function compactExpectedText(text: string, maxLength = 240): string {
-  const compacted = text.replace(/\s+/gu, " ").trim();
-  return compacted.length <= maxLength ? compacted : `${compacted.slice(0, maxLength - 3)}...`;
-}
-
-function forkDeltaSummary(input: {
-  readonly sourceThreadId: ThreadId;
-  readonly targetThreadId: ThreadId;
-  readonly forkUserText: string;
-  readonly forkAssistantText: string;
-}): string {
+function forkPointer(input: { readonly forkThreadId: ThreadId; readonly title: string }): string {
   return [
-    "Merge-back context from forked conversation.",
-    `Source thread: ${input.sourceThreadId}`,
-    `Target thread: ${input.targetThreadId}`,
-    "Covered fork runs: 1-1",
-    "",
-    "Fork delta:",
-    `- User: ${compactExpectedText(input.forkUserText)}`,
-    `- Assistant: ${compactExpectedText(input.forkAssistantText)}`,
-    "- Checkpoint: 0 files",
+    `Fork "${input.title}" (thread ${input.forkThreadId}) was merged back into this thread.`,
+    "Only its final reply is included below. When relevant, read the fork with the t3_thread_read tool or ask it with the t3_thread_send tool using that thread id.",
   ].join("\n");
 }
 
@@ -392,17 +376,13 @@ describe("orchestration V2 merge-back provider replay", () => {
             secondForkRunId,
           };
         }).pipe(Effect.provide(IdAllocator.layer), provideDeterministicTestRuntime);
-        const firstSummary = forkDeltaSummary({
-          sourceThreadId: materialized.firstForkThreadId,
-          targetThreadId: materialized.sourceThreadId,
-          forkUserText: THREAD_MERGE_BACK_SIBLINGS_FIRST_FORK_PROMPT,
-          forkAssistantText: "first merge sibling stored",
+        const firstSummary = forkPointer({
+          forkThreadId: materialized.firstForkThreadId,
+          title: "First merge-back sibling",
         });
-        const secondSummary = forkDeltaSummary({
-          sourceThreadId: materialized.secondForkThreadId,
-          targetThreadId: materialized.sourceThreadId,
-          forkUserText: THREAD_MERGE_BACK_SIBLINGS_SECOND_FORK_PROMPT,
-          forkAssistantText: "second merge sibling stored",
+        const secondSummary = forkPointer({
+          forkThreadId: materialized.secondForkThreadId,
+          title: "Second merge-back sibling",
         });
         const transcript = parameterizeHandoffs(rawTranscript, [
           [
@@ -501,6 +481,12 @@ describe("orchestration V2 merge-back provider replay", () => {
           (transfer) => transfer.type === "merge_back",
         );
         assert.lengthOf(mergeTransfers, 2);
+        assert.deepEqual(
+          source.turnItems.flatMap((item) =>
+            item.type === "merge_back" ? [item.sourceThreadId] : [],
+          ),
+          [materialized.firstForkThreadId, materialized.secondForkThreadId],
+        );
         assert.deepEqual(
           mergeTransfers.map((transfer) => transfer.status),
           ["consumed", "consumed"],

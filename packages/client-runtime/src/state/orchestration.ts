@@ -210,6 +210,10 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       label: "environment-data:orchestration:find-threads-by-description",
       tag: ORCHESTRATION_V2_WS_METHODS.findThreadsByDescription,
     }),
+    finalizeFork: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:orchestration:finalize-fork",
+      tag: ORCHESTRATION_V2_WS_METHODS.finalizeFork,
+    }),
     turnItem: (target: {
       readonly environmentId: EnvironmentId;
       readonly input: OrchestrationV2GetTurnItemInput;

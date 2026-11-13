@@ -1648,3 +1648,94 @@ it.effect("a native fork that fails before its last attempt still forks natively
     assert.equal(projection.contextTransfers[0]?.resolution?.strategy, "native_fork");
   }),
 );
+
+it.effect.each([
+  {
+    name: "an interrupted turn while the next one runs",
+    runs: [
+      { ordinal: 1, status: "interrupted", checkpointed: true },
+      { ordinal: 2, status: "running", checkpointed: false },
+    ],
+    expectedOrdinal: 1,
+  },
+  {
+    name: "the newest finished turn over an older checkpointed one",
+    runs: [
+      { ordinal: 1, status: "completed", checkpointed: true },
+      { ordinal: 2, status: "failed", checkpointed: false },
+      { ordinal: 3, status: "running", checkpointed: false },
+    ],
+    expectedOrdinal: 2,
+  },
+] as const)("latest_stable forks from $name", ({ runs, expectedOrdinal }) =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const eventSink = yield* EventSink.EventSinkV2;
+    const now = yield* DateTime.now;
+    const { instanceId, modelSelection } = forkCases[1]!;
+    const sourceThreadId = ThreadId.make(`latest-stable-source-${expectedOrdinal}`);
+    const targetThreadId = ThreadId.make(`latest-stable-target-${expectedOrdinal}`);
+    const runId = (ordinal: number) =>
+      RunId.make(`latest-stable-run-${expectedOrdinal}-${ordinal}`);
+
+    yield* orchestrator.dispatch({
+      type: "thread.create",
+      commandId: CommandId.make(`latest-stable-create-${expectedOrdinal}`),
+      threadId: sourceThreadId,
+      projectId: ProjectId.make("latest-stable-project"),
+      title: "Latest stable source",
+      modelSelection,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdBy: "user",
+      creationSource: "web",
+    });
+    yield* eventSink.write({
+      events: runs.map((run) => ({
+        id: EventId.make(`latest-stable-run-event-${expectedOrdinal}-${run.ordinal}`),
+        type: "run.created" as const,
+        threadId: sourceThreadId,
+        runId: runId(run.ordinal),
+        occurredAt: now,
+        payload: {
+          id: runId(run.ordinal),
+          threadId: sourceThreadId,
+          ordinal: run.ordinal,
+          providerInstanceId: instanceId,
+          modelSelection,
+          providerThreadId: null,
+          userMessageId: MessageId.make(`latest-stable-message-${expectedOrdinal}-${run.ordinal}`),
+          rootNodeId: null,
+          activeAttemptId: null,
+          status: run.status,
+          requestedAt: now,
+          startedAt: now,
+          completedAt: run.status === "running" ? null : now,
+          checkpointId: run.checkpointed
+            ? CheckpointId.make(`latest-stable-checkpoint-${expectedOrdinal}-${run.ordinal}`)
+            : null,
+          contextHandoffId: null,
+        },
+      })),
+    });
+
+    yield* orchestrator.dispatch({
+      type: "thread.fork",
+      commandId: CommandId.make(`latest-stable-fork-${expectedOrdinal}`),
+      sourceThreadId,
+      targetThreadId,
+      sourcePoint: { type: "latest_stable" },
+      createdBy: "user",
+      creationSource: "web",
+    });
+
+    const fork = yield* orchestrator.getThreadShell(targetThreadId);
+    assert.deepEqual(fork?.forkedFrom, {
+      type: "run",
+      threadId: sourceThreadId,
+      runId: runId(expectedOrdinal),
+    });
+  }).pipe(Effect.provide(forkCases[1]!.layer)),
+);

@@ -660,6 +660,11 @@ export function ThreadRelationshipsPanel(props: {
       });
       return;
     }
+    toastManager.add({
+      type: "info",
+      title: "Merged back",
+      description: "The fork reaches this thread with your next message here.",
+    });
     openThread(mergeTargetThreadId);
   };
 

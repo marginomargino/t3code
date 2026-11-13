@@ -3,6 +3,7 @@ import {
   ContextTransferId,
   MessageId,
   ProjectId,
+  ProviderDriverKind,
   ProviderInstanceId,
   ProviderThreadId,
   RunId,
@@ -16,6 +17,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import * as ContextHandoffService from "./ContextHandoffService.ts";
+import { deliverContextHandoffs } from "./ContextHandoffDelivery.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import { ProjectionStoreThreadNotFoundError } from "./ProjectionStore.ts";
 
@@ -158,6 +160,63 @@ it.layer(layerTest)("ContextHandoffService legacy import", (it) => {
       assert.include(handoff.summaryText, "LATEST_SINGLE_TOKEN");
       assert.notInclude(handoff.summaryText, "\ufffd");
     }),
+  );
+
+  it.effect(
+    "keeps the fork reference in the delivered merge-back pointer for a very long title",
+    () =>
+      Effect.gen(function* () {
+        const service = yield* ContextHandoffService.ContextHandoffServiceV2;
+        const now = DateTime.makeUnsafe("2026-01-02T00:00:00.000Z");
+        const sourceThreadId = ThreadId.make("thread:fork-source");
+        const targetThreadId = ThreadId.make("thread:fork-parent");
+        const handoff = yield* service.prepareForkDelta({
+          sourceThreadId,
+          targetThreadId,
+          targetRunId: RunId.make("run:parent-2"),
+          transferId: ContextTransferId.make("transfer:merge-back"),
+          fromProviderThreadIds: [ProviderThreadId.make("provider-thread:fork")],
+          toProviderThreadId: ProviderThreadId.make("provider-thread:parent"),
+          fromProviderInstanceId: ProviderInstanceId.make("codex"),
+          toProviderInstanceId: ProviderInstanceId.make("codex"),
+          sourceThreadTitle: "x".repeat(5_000),
+          finalReply: importedItem({
+            role: "assistant",
+            id: "fork-recap",
+            text: "- Recap: dbsync gained an append mode",
+            ordinal: 4,
+          }),
+          coveredRunOrdinals: { from: 1, to: 2 },
+          createdAt: now,
+        });
+        const { context } = yield* deliverContextHandoffs({
+          handoffs: [handoff],
+          providerThread: {
+            id: ProviderThreadId.make("provider-thread:parent"),
+            driver: ProviderDriverKind.make("codex"),
+            providerInstanceId: ProviderInstanceId.make("codex"),
+            providerSessionId: null,
+            appThreadId: targetThreadId,
+            ownerNodeId: null,
+            nativeThreadRef: null,
+            nativeConversationHeadRef: null,
+            status: "idle",
+            firstRunOrdinal: null,
+            lastRunOrdinal: null,
+            handoffIds: [],
+            forkedFrom: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+          budget: 16_000,
+          alreadyDeliveredItemIds: new Set(),
+          persist: () => Effect.void,
+        });
+
+        assert.include(context, sourceThreadId);
+        assert.include(context, "t3_thread_send");
+        assert.include(context, "- Recap: dbsync gained an append mode");
+      }),
   );
 });
 

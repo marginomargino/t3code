@@ -15,6 +15,7 @@ import {
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
   resolveSidebarRowThreadId,
+  nestSidebarSectionForks,
   orderItemsByPreferredIds,
   pinOrderKeyBetween,
   resolveSidebarSweepKeys,
@@ -179,6 +180,94 @@ describe("sidebar thread lineage helpers", () => {
     const loopA = subagentOf("thread-loop-a", ThreadId.make("thread-loop-b"));
     const loopB = subagentOf("thread-loop-b", loopA.id);
     expect(resolveSidebarRowThreadId(loopA.id, environmentId, [loopA, loopB])).toBe(loopA.id);
+  });
+});
+
+describe("nestSidebarSectionForks", () => {
+  const environmentId = EnvironmentId.make("environment-forks");
+  const plain = (id: string) => makeThreadFixture({ id: ThreadId.make(id), environmentId });
+  const forkOf = (id: string, parentId: string) =>
+    makeThreadFixture({
+      id: ThreadId.make(id),
+      environmentId,
+      lineage: {
+        rootThreadId: ThreadId.make(parentId),
+        parentThreadId: ThreadId.make(parentId),
+        relationshipToParent: "fork",
+      },
+    });
+  const shape = (rows: ReturnType<typeof nestSidebarSectionForks>) =>
+    rows.map((row) => `${row.thread.id}@${row.depth}`);
+
+  it("places forks after their parent at any depth, keeping section order otherwise", () => {
+    const threads = [
+      forkOf("grandchild", "child"),
+      plain("a"),
+      forkOf("child", "a"),
+      plain("b"),
+      forkOf("second-child", "a"),
+    ];
+    expect(shape(nestSidebarSectionForks(threads, "nested"))).toEqual([
+      "a@0",
+      "child@1",
+      "grandchild@2",
+      "second-child@1",
+      "b@0",
+    ]);
+  });
+
+  it("places each fork tree and subtree at its most recent member", () => {
+    const threads = [
+      forkOf("deep", "second"),
+      plain("b"),
+      forkOf("fresh", "c"),
+      plain("a"),
+      forkOf("first", "a"),
+      forkOf("second", "a"),
+      plain("c"),
+    ];
+    expect(shape(nestSidebarSectionForks(threads, "nested"))).toEqual([
+      "a@0",
+      "second@1",
+      "deep@2",
+      "first@1",
+      "b@0",
+      "c@0",
+      "fresh@1",
+    ]);
+    expect(shape(nestSidebarSectionForks(threads, "nested", true))).toEqual([
+      "b@0",
+      "a@0",
+      "first@1",
+      "second@1",
+      "deep@2",
+      "c@0",
+      "fresh@1",
+    ]);
+  });
+
+  it("keeps a fork top-level when its parent is in another section or absent", () => {
+    const threads = [plain("a"), forkOf("orphan", "elsewhere"), plain("b")];
+    expect(shape(nestSidebarSectionForks(threads, "nested"))).toEqual(["a@0", "orphan@0", "b@0"]);
+  });
+
+  it("does not nest under a same-id parent from another environment", () => {
+    const parent = makeThreadFixture({
+      id: ThreadId.make("p"),
+      environmentId: EnvironmentId.make("environment-other"),
+    });
+    const threads = [forkOf("f", "p"), parent];
+    expect(shape(nestSidebarSectionForks(threads, "nested"))).toEqual(["f@0", "p@0"]);
+  });
+
+  it("breaks a fork cycle at its earliest member and emits every thread once", () => {
+    const threads = [plain("a"), forkOf("x", "z"), forkOf("y", "x"), forkOf("z", "y")];
+    expect(shape(nestSidebarSectionForks(threads, "nested"))).toEqual(["a@0", "x@0", "y@1", "z@2"]);
+  });
+
+  it("leaves flat mode in section order at depth zero", () => {
+    const threads = [forkOf("child", "a"), plain("a")];
+    expect(shape(nestSidebarSectionForks(threads, "flat"))).toEqual(["child@0", "a@0"]);
   });
 });
 

@@ -4,6 +4,7 @@ import {
   EnvironmentId,
   MessageId,
   type OrchestrationV2Command,
+  type OrchestrationV2ServerCommand,
   type OrchestrationV2Run,
   type OrchestrationV2ProviderThread,
   ProviderThreadId,
@@ -963,6 +964,138 @@ it.effect(
         expect((yield* Fiber.join(e)).threadId).toBe("e");
         expect((yield* Fiber.join(f)).threadId).toBe("f");
         expect(yield* Queue.size(started)).toBe(0);
+      }).pipe(Effect.provide(layerTest));
+    }),
+);
+
+it.effect(
+  "Finalize waits out the parent's work, merges the fork's recap run back, then settles the fork",
+  () =>
+    Effect.gen(function* () {
+      const projectId = ProjectId.make("project:thread-management:finalize");
+      const forkId = ThreadId.make("thread:thread-management:finalize-fork");
+      const parentId = ThreadId.make("thread:thread-management:finalize-parent");
+      const parentRunId = RunId.make("run:thread-management:finalize-parent-busy");
+      const instanceId = ProviderInstanceId.make("codex_work");
+      const dispatched: Array<OrchestrationV2ServerCommand> = [];
+      const settled = yield* Deferred.make<void>();
+      const subscribed = {
+        [forkId]: yield* Deferred.make<void>(),
+        [parentId]: yield* Deferred.make<void>(),
+      };
+      const events = {
+        [forkId]: yield* Queue.unbounded<OrchestrationV2StoredEvent>(),
+        [parentId]: yield* Queue.unbounded<OrchestrationV2StoredEvent>(),
+      };
+      let relationshipToParent: "fork" | null = null;
+      let runs: Array<{ id: RunId; ordinal: number; status: OrchestrationV2Run["status"] }> = [];
+      let parentRuns: Array<{ id: RunId; ordinal: number; status: OrchestrationV2Run["status"] }> =
+        [{ id: parentRunId, ordinal: 5, status: "running" }];
+      let messages: Array<{ id: MessageId; runId: RunId }> = [];
+      let turnItems: Array<object> = [];
+      const runUpdated = (threadId: ThreadId, id: RunId) =>
+        ({
+          sequence: 1,
+          event: { threadId, type: "run.updated", payload: { id, status: "completed" } },
+        }) as unknown as OrchestrationV2StoredEvent;
+      const layerTest = ThreadManagementService.layer.pipe(
+        Layer.provide(Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({})),
+        Layer.provide(
+          Layer.mock(Orchestrator.OrchestratorV2)({
+            getThreadEventSequence: () => Effect.succeed(0),
+            restartContinuationPending: () => Effect.succeed(false),
+            streamStoredEventsFrom: (input) =>
+              input?.eventType === "run.updated" && input.threadId !== undefined
+                ? Stream.fromEffect(Deferred.succeed(subscribed[input.threadId]!, undefined)).pipe(
+                    Stream.drain,
+                    Stream.concat(Stream.fromQueue(events[input.threadId]!)),
+                  )
+                : Stream.never,
+            getThreadRecords: (threadId) =>
+              Effect.sync(() =>
+                threadId === parentId
+                  ? ({
+                      thread: { id: parentId, projectId, deletedAt: null, archivedAt: null },
+                      runs: parentRuns,
+                      messages: [],
+                      turnItems: [],
+                      providerTurns: [],
+                    } as unknown as OrchestrationV2ThreadProjection)
+                  : ({
+                      thread: {
+                        id: forkId,
+                        projectId,
+                        deletedAt: null,
+                        archivedAt: null,
+                        modelSelection: { instanceId, model: "test" },
+                        lineage: { relationshipToParent, parentThreadId: parentId },
+                        forkedFrom: null,
+                      },
+                      runs,
+                      messages,
+                      turnItems,
+                      providerTurns: [],
+                    } as unknown as OrchestrationV2ThreadProjection),
+              ),
+            dispatch: (command) =>
+              Effect.gen(function* () {
+                dispatched.push(command);
+                if (command.type === "message.dispatch") {
+                  const runId = RunId.make("run:thread-management:finalize-recap");
+                  runs = [{ id: runId, ordinal: 2, status: "running" }];
+                  messages = [{ id: command.messageId, runId }];
+                  turnItems = [
+                    {
+                      type: "user_message",
+                      messageId: command.messageId,
+                      inputIntent: "turn_start",
+                    },
+                  ];
+                }
+                if (command.type === "thread.settle") yield* Deferred.succeed(settled, undefined);
+                return { sequence: dispatched.length, storedEvents: [] } as never;
+              }),
+          }),
+        ),
+        Layer.provide(
+          ServerSettings.layerTest({
+            providerInstances: { [instanceId]: { driver: "codex", enabled: true } },
+          }),
+        ),
+        Layer.provide(layerReceiptsTest),
+      );
+
+      yield* Effect.gen(function* () {
+        const service = yield* ThreadManagementService.ThreadManagementService;
+        const refused = yield* Effect.flip(service.finalizeFork({ threadId: forkId }));
+        expect(refused.reason).toBe("not_a_fork");
+        expect(dispatched).toEqual([]);
+
+        relationshipToParent = "fork";
+        const result = yield* service.finalizeFork({ threadId: forkId });
+        expect(result.parentThreadId).toBe(parentId);
+        yield* Deferred.await(subscribed[forkId]!);
+        runs = [{ id: result.recapRunId, ordinal: 2, status: "completed" }];
+        yield* Queue.offer(events[forkId]!, runUpdated(forkId, result.recapRunId));
+        // Merge back refuses while the parent works, so Finalize waits for that run first.
+        yield* Deferred.await(subscribed[parentId]!);
+        expect(dispatched.map((command) => command.type)).toEqual(["message.dispatch"]);
+        parentRuns = [{ id: parentRunId, ordinal: 5, status: "completed" }];
+        yield* Queue.offer(events[parentId]!, runUpdated(parentId, parentRunId));
+        yield* Deferred.await(settled);
+
+        expect(dispatched.map((command) => command.type)).toEqual([
+          "message.dispatch",
+          "thread.merge_back",
+          "thread.settle",
+        ]);
+        expect(dispatched[0]).toMatchObject({ dispatchMode: { type: "queue_after_active" } });
+        expect(dispatched[1]).toMatchObject({
+          sourceThreadId: forkId,
+          targetThreadId: parentId,
+          sourcePoint: { type: "run", runId: result.recapRunId },
+        });
+        expect(dispatched[2]).toMatchObject({ threadId: forkId });
       }).pipe(Effect.provide(layerTest));
     }),
 );

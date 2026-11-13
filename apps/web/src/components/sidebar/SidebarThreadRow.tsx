@@ -544,6 +544,9 @@ function TopStatusIcon(props: { icon: keyof typeof TOP_STATUS_ICONS; className: 
 
 type SidebarThreadRowProps = {
   thread: SidebarThreadSummary;
+  depth: number;
+  /** Set on fork rows only: the parent's title, or a placeholder when its shell is not loaded. */
+  forkParentLabel: string | null;
   // "folder" is a one-line row inside a boring sidebar project folder;
   // "folder-multiline" adds the card's branch and PR line under it.
   variant: "card" | "slim" | "folder" | "folder-multiline";
@@ -597,6 +600,33 @@ type SidebarThreadRowProps = {
   onAcknowledgeWoke: (threadRef: ScopedThreadRef, visitedAt: string) => void;
   onFileDropThreads?: ((threadRef: ScopedThreadRef, files: File[]) => void) | undefined;
 };
+
+const FORK_DEPTH_INDENT = ["", "ps-3", "ps-6", "ps-9"] as const;
+
+function forkIndentClassName(depth: number) {
+  return FORK_DEPTH_INDENT[Math.min(depth, FORK_DEPTH_INDENT.length - 1)];
+}
+
+function ForkParentLink(props: {
+  label: string;
+  onActivate: (event: ReactMouseEvent | ReactKeyboardEvent) => void;
+}) {
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      aria-label={`Open parent thread ${props.label}`}
+      onClick={props.onActivate}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") props.onActivate(event);
+      }}
+      className="min-w-0 shrink cursor-pointer truncate rounded-sm text-secondary-label text-xs outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+    >
+      ↳ {props.label}
+    </span>
+  );
+}
 
 // Mounted only while renaming, so each rename starts uncommitted.
 function ThreadRenameInput(props: {
@@ -678,6 +708,16 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     };
   };
   const isRegeneratingTitle = thread.titleRegeneration != null;
+  const forkParentId = props.forkParentLabel === null ? null : thread.lineage.parentThreadId;
+  const handleForkParentActivate = (event: ReactMouseEvent | ReactKeyboardEvent) => {
+    event.stopPropagation();
+    event.preventDefault();
+    if (forkParentId !== null) onThreadActivate(scopeThreadRef(thread.environmentId, forkParentId));
+  };
+  const forkParentLink =
+    props.forkParentLabel !== null && forkParentId !== null ? (
+      <ForkParentLink label={props.forkParentLabel} onActivate={handleForkParentActivate} />
+    ) : null;
   const localLastVisitedAt = useUiStateStore((state) => state.threadLastVisitedAtById[threadKey]);
   const lastVisitedAt = resolveThreadLastVisitedAt(thread.lastVisitedAt, localLastVisitedAt);
   const isSelected = useThreadSelectionStore((state) => state.selectedThreadKeys.has(threadKey));
@@ -1163,9 +1203,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     !showsScratchMachine &&
     prBadge === null &&
     diff === null &&
+    forkParentLink === null &&
     runningTerminalIds.length === 0;
   const metaLine = metaLineEmpty ? null : (
     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
+      {forkParentLink}
       {checkoutThread.branch ? (
         <>
           <ThreadWorktreeIndicator thread={checkoutThread} />
@@ -1226,6 +1268,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         className={cn(
           "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(9)]",
           metaLine !== null && multiline && "[contain-intrinsic-size:auto_--spacing(13.5)]",
+          forkIndentClassName(props.depth),
           sortable?.isDragging && "relative z-20",
         )}
       >
@@ -1275,7 +1318,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               )}
               {draftIndicator}
               {title}
-              {multiline ? titleLineIcons : null}
+              {multiline ? titleLineIcons : forkParentLink}
               {pinIndicator}
               {multiline ? null : terminalStatusIcon}
               {isRegeneratingTitle ? (
@@ -1422,6 +1465,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       className={cn(
         "list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_78px]",
         metaLineEmpty && "[contain-intrinsic-size:auto_58px]",
+        forkIndentClassName(props.depth),
         sortable?.isDragging && "relative z-20",
       )}
     >

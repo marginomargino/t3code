@@ -18,6 +18,9 @@ import {
   OrchestrationV2ForceStopThreadError,
   type OrchestrationV2ForceStopThreadInput,
   type OrchestrationV2ForceStopThreadResult,
+  OrchestrationV2FinalizeForkError,
+  type OrchestrationV2FinalizeForkInput,
+  type OrchestrationV2FinalizeForkResult,
   type ModelSelection,
   type OrchestrationV2Actor,
   type OrchestrationV2Command,
@@ -481,6 +484,13 @@ export interface ThreadManagementServiceShape {
   readonly forceStopThread: (
     input: OrchestrationV2ForceStopThreadInput,
   ) => Effect.Effect<OrchestrationV2ForceStopThreadResult, OrchestrationV2ForceStopThreadError>;
+  /**
+   * Asks the fork's agent for a recap, then in the background merges that reply back into the
+   * parent and settles the fork. Resolves once the recap turn is accepted.
+   */
+  readonly finalizeFork: (
+    input: OrchestrationV2FinalizeForkInput,
+  ) => Effect.Effect<OrchestrationV2FinalizeForkResult, OrchestrationV2FinalizeForkError>;
   readonly awaitBackgroundTasks: (input: {
     readonly threadId: ThreadId;
     readonly taskIds: ReadonlyArray<string>;
@@ -578,6 +588,9 @@ function latestSteerableRun(
 }
 
 const SETTLE_AFTER_RUN_WAIT_MS = 24 * 60 * 60 * 1_000;
+const FINALIZE_FORK_WAIT_MS = SETTLE_AFTER_RUN_WAIT_MS;
+const FINALIZE_FORK_RECAP_PROMPT =
+  "This fork is being finalized and merged back into the thread it was forked from. Reply with a short recap (at most 6 bullets) of what was done here: outcomes, files changed or commands run, and anything left open. Reply with the recap only.";
 const FORCE_STOP_REASON = "Force stopped by user";
 const FORCE_STOP_RELEASE_WAIT = "10 seconds";
 const isForceStopThreadError = Schema.is(OrchestrationV2ForceStopThreadError);
@@ -1179,6 +1192,88 @@ const make = Effect.gen(function* () {
     return { sequence: result.sequence };
   });
 
+  const finalizeFork: ThreadManagementServiceShape["finalizeFork"] = Effect.fn(
+    "ThreadManagementService.finalizeFork",
+  )(function* (input) {
+    const fail = (cause: unknown) =>
+      new OrchestrationV2FinalizeForkError({ threadId: input.threadId, reason: "failed", cause });
+    const { thread } = yield* orchestrator
+      .getThreadRecords(input.threadId, ["runs"])
+      .pipe(Effect.mapError(fail));
+    const parentThreadId =
+      thread.lineage.relationshipToParent !== "fork"
+        ? null
+        : thread.forkedFrom?.type === "run"
+          ? thread.forkedFrom.threadId
+          : thread.lineage.parentThreadId;
+    if (parentThreadId === null) {
+      return yield* new OrchestrationV2FinalizeForkError({
+        threadId: input.threadId,
+        reason: "not_a_fork",
+      });
+    }
+    const key = `server:finalize-fork:${input.threadId}:${yield* Clock.currentTimeMillis}`;
+    const sent = yield* sendToThread({
+      projectId: thread.projectId,
+      commandId: CommandId.make(key),
+      threadId: input.threadId,
+      messageId: MessageId.make(`${key}:recap`),
+      text: FINALIZE_FORK_RECAP_PROMPT,
+      attachments: [],
+      mode: "queue",
+      createdBy: "user",
+      creationSource: "web",
+    }).pipe(Effect.mapError(fail));
+    yield* Effect.gen(function* () {
+      const waited = yield* waitForThread({
+        projectId: thread.projectId,
+        threadId: input.threadId,
+        runId: sent.run.id,
+        timeoutMs: FINALIZE_FORK_WAIT_MS,
+      });
+      const recapRun = waited.run;
+      if (waited.timedOut || recapRun?.status !== "completed") {
+        return yield* Effect.logWarning("Fork finalize stopped: the recap turn did not complete", {
+          threadId: input.threadId,
+          runId: sent.run.id,
+        });
+      }
+      // Merge back refuses while the parent works or has a queue, so wait those runs out.
+      while (true) {
+        const { runs } = yield* orchestrator.getThreadRecords(parentThreadId, ["runs"]);
+        const busy = runs.find((run) => isActiveRun(run) || run.status === "queued");
+        if (busy === undefined) break;
+        const parentWait = yield* waitForThread({
+          projectId: thread.projectId,
+          threadId: parentThreadId,
+          runId: busy.id,
+          timeoutMs: FINALIZE_FORK_WAIT_MS,
+        });
+        if (parentWait.timedOut) {
+          return yield* Effect.logWarning("Fork finalize stopped: the parent thread stayed busy", {
+            threadId: input.threadId,
+            parentThreadId,
+          });
+        }
+      }
+      yield* dispatch({
+        type: "thread.merge_back",
+        commandId: CommandId.make(`${key}:merge-back`),
+        sourceThreadId: input.threadId,
+        targetThreadId: parentThreadId,
+        sourcePoint: { type: "run", runId: recapRun.id },
+        createdBy: "user",
+        creationSource: "web",
+      });
+      yield* dispatch({
+        type: "thread.settle",
+        commandId: CommandId.make(`${key}:settle`),
+        threadId: input.threadId,
+      });
+    }).pipe(Effect.ignoreCause({ log: true }), Effect.forkIn(layerScope));
+    return { parentThreadId, recapRunId: sent.run.id };
+  });
+
   const interruptThread: ThreadManagementServiceShape["interruptThread"] = Effect.fn(
     "ThreadManagementService.interruptThread",
   )(function* (input) {
@@ -1700,6 +1795,7 @@ const make = Effect.gen(function* () {
     stopDelegatedTasks,
     stopWorkflow,
     forceStopThread,
+    finalizeFork,
     awaitBackgroundTasks,
     getThreadEventSequence: orchestrator.getThreadEventSequence,
     recoverDelegatedTask: orchestrator.recoverDelegatedTask,

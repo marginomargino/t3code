@@ -214,6 +214,8 @@ import type { ManagedServerProvider } from "@t3tools/provider-core/server/snapsh
 import {
   T3_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH,
   T3_CODE_ORCHESTRATION_INSTRUCTIONS,
+  t3ForkParentInstructions,
+  type T3ForkLineage,
 } from "@t3tools/provider-core/server/orchestrationInstructions";
 import { buildRuntimeInstructions } from "@t3tools/provider-core/server/runtimeInstructions";
 import {
@@ -1981,6 +1983,7 @@ export function makeClaudeQueryOptions(input: {
   readonly mcpServers?: ClaudeQueryOptions["mcpServers"];
   /** The thread's T3 MCP session holds the `device` capability. */
   readonly deviceToolsAvailable?: boolean;
+  readonly fork?: T3ForkLineage;
   readonly tools?: ClaudeAgentSdkQueryTools;
   readonly allowedTools?: ReadonlyArray<string>;
   readonly disallowedTools?: ReadonlyArray<string>;
@@ -2134,7 +2137,8 @@ export function makeClaudeQueryOptions(input: {
               CLAUDE_BACKGROUND_WAIT_INSTRUCTIONS +
               (deviceInstructions
                 ? `\n${T3_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH}\n`
-                : "")),
+                : "") +
+              (input.fork === undefined ? "" : `\n${t3ForkParentInstructions(input.fork)}\n`)),
         ...launchAppendSystemPrompt,
       ].join("\n\n"),
     },
@@ -2546,11 +2550,9 @@ const resolveClaudeForkUpToMessageId = Effect.fn("ClaudeAdapterV2.resolveForkUpT
       return boundaryNativeId;
     }
 
-    const terminalTurnsAfterBoundary = sourceTurns
-      .slice(boundaryIndex + 1)
-      .filter(isTerminalProviderTurn);
-    if (terminalTurnsAfterBoundary.length === 0) {
-      // Rollback pins the head but leaves the rolled-back turns in Claude's transcript.
+    // A turn still streaming after the boundary must not be copied; rollback pins the head but
+    // leaves the rolled-back turns in Claude's transcript.
+    if (boundaryIndex === sourceTurns.length - 1) {
       return yield* getNativeConversationHeadId(input.sourceProviderThread);
     }
 
@@ -12174,6 +12176,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               ? {}
               : { mcpServers: mcpOverrides.mcpServers }),
             deviceToolsAvailable: mcpSession?.capabilities?.has("device") === true,
+            ...(turnInput.forkParent === undefined
+              ? {}
+              : { fork: { threadId: turnInput.threadId, parent: turnInput.forkParent } }),
             permissionMode: queryPolicy.permissionMode,
             ...(queryPolicy.allowDangerouslySkipPermissions === undefined
               ? {}

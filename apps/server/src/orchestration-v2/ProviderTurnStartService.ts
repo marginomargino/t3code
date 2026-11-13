@@ -116,6 +116,15 @@ const startFailureMessage = (error: Error): string => {
   );
 };
 
+const forkParentNote = (threadId: ThreadId, title: string | null): string =>
+  [
+    "<t3_fork_parent>",
+    ...(title === null ? [] : [`title: ${title}`]),
+    `threadId: ${threadId}`,
+    "This conversation is a fork of that thread: it continues the parent's history from the fork point, and the parent may still be active. Read the parent with t3_thread_read(threadId); message it with t3_thread_send(threadId) to report back or coordinate when the user asks or the work calls for it.",
+    "</t3_fork_parent>",
+  ].join("\n");
+
 export interface ProviderTurnStartServiceV2Shape {
   readonly start: (input: {
     readonly threadId: ThreadId;
@@ -748,7 +757,7 @@ export const layer: Layer.Layer<
       });
       let effectiveHandoffs = handoffs;
       let resumeFellBack = false;
-      const userText = projectComposerContextForProvider({
+      const projectedUserText = projectComposerContextForProvider({
         text: message.text,
         records: message.context?.records ?? [],
       });
@@ -758,6 +767,33 @@ export const layer: Layer.Layer<
         session.driver === "claudeAgent" ||
         session.providerSession.capabilities.turns.supportsNativeGoals === true;
       const goalCommand = goalDriver && parseGoalCommand(message) !== null;
+      const { lineage } = projection.thread;
+      const forkParentThreadId =
+        lineage.relationshipToParent === "fork" ? lineage.parentThreadId : null;
+      // A deleted parent must not block the fork's turn; the parent just loses its title.
+      const forkParent =
+        forkParentThreadId === null
+          ? undefined
+          : {
+              threadId: forkParentThreadId,
+              title: yield* projectionStore.getThreadRecords(forkParentThreadId, []).pipe(
+                Effect.map(({ thread }): string | null => thread.title),
+                Effect.orElseSucceed(() => null),
+              ),
+            };
+      // Codex and Claude carry the parent in session instructions; others hear once, in the fork's first prompt.
+      const forkTransfer = goalDriver
+        ? undefined
+        : projection.contextTransfers.find(
+            (transfer) =>
+              transfer.type === "fork" &&
+              transfer.targetThreadId === input.threadId &&
+              transfer.targetRunId === run.id,
+          );
+      const userText =
+        forkTransfer === undefined || forkParent === undefined
+          ? projectedUserText
+          : `${projectedUserText}\n\n${forkParentNote(forkParent.threadId, forkParent.title)}`;
       // The provider turn marks cancellation work delivered; restart continuations use their own text or resume natively.
       const noteContinuation = isRestartNoteContinuation(
         run,
@@ -1709,6 +1745,7 @@ export const layer: Layer.Layer<
       return runExecution.startRootRun({
         commandId: CommandId.make(`command:effect:provider-turn.start:${run.id}`),
         appThread: projection.thread,
+        ...(forkParent === undefined ? {} : { forkParent }),
         providerSessionId,
         session: deliverySession,
         run: runningRun,
