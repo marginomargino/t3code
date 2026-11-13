@@ -5,7 +5,9 @@ import {
   CodexSettings,
   EasDeviceHostConfig,
   type ProviderInstanceConfig,
+  type ProviderInstanceMutation,
   type ServerSettings,
+  type ServerSettingsPatch,
   type SettingsSecretValue,
   SimlockDeviceHostConfig,
   TextGeneratorConfig,
@@ -72,10 +74,21 @@ type SecretFieldsMapper = (
 ) => Record<string, unknown>;
 type ProviderEnvironment = NonNullable<ProviderInstanceConfig["environment"]>;
 
-export function mapSettingsSecrets(
-  settings: ServerSettings,
+type SecretBearingSettings = Pick<
+  ServerSettings,
+  | "providerInstances"
+  | "sourceControlHosts"
+  | "usageLimitSources"
+  | "textGenerators"
+  | "cloudSpeechCredentials"
+  | "easDeviceHosts"
+  | "simlockDeviceHosts"
+>;
+
+export function mapSettingsSecrets<Settings extends SecretBearingSettings>(
+  settings: Settings,
   map: (secret: SettingsSecret) => SecretValue,
-): ServerSettings {
+): Settings {
   const mapFields: SecretFieldsMapper = (fields, secretFields, name) => {
     const next = { ...fields };
     for (const field of secretFields) {
@@ -153,14 +166,14 @@ export function mapSettingsSecretValues(
   });
 }
 
-function mapSecretFieldGroups(
-  settings: ServerSettings,
+function mapSecretFieldGroups<Settings extends SecretBearingSettings>(
+  settings: Settings,
   mapFields: SecretFieldsMapper,
   mapEnvironment: (instanceId: string, environment: ProviderEnvironment) => ProviderEnvironment = (
     _instanceId,
     environment,
   ) => environment,
-): ServerSettings {
+): Settings {
   const providerInstances = Object.fromEntries(
     Object.entries(settings.providerInstances).map(([instanceId, instance]) => {
       const config = instance.config;
@@ -290,5 +303,64 @@ export function withoutRemovedSecretProviderReferences(
           : instance,
       ]),
     ),
+  };
+}
+
+/** Maps the secrets a client settings update would write, keeping every other patch field. */
+export function mapSettingsUpdateSecrets(
+  update: {
+    readonly patch: ServerSettingsPatch;
+    readonly providerInstanceMutation?: ProviderInstanceMutation | undefined;
+  },
+  map: (secret: SettingsSecret) => SecretValue,
+) {
+  const { patch, providerInstanceMutation: mutation } = update;
+  const instance = mutation?.operation === "remove" ? undefined : mutation;
+  const usageLimitSources = patch.usageLimitSources ?? {};
+  const textGenerators = patch.textGenerators ?? {};
+  const mapped = mapSettingsSecrets(
+    {
+      providerInstances: instance ? { [instance.instanceId]: instance.instance } : {},
+      sourceControlHosts: patch.sourceControlHosts ?? {},
+      usageLimitSources: Object.fromEntries(
+        Object.entries(usageLimitSources).filter(
+          (entry): entry is [string, UsageLimitSourceConfig] => entry[1] !== null,
+        ),
+      ),
+      textGenerators: Object.fromEntries(
+        Object.entries(textGenerators).filter(
+          (entry): entry is [string, TextGeneratorConfig] => entry[1] !== null,
+        ),
+      ),
+      // Partial on purpose: absent credentials are skipped, not cleared.
+      cloudSpeechCredentials: (patch.cloudSpeechCredentials ??
+        {}) as ServerSettings["cloudSpeechCredentials"],
+      easDeviceHosts: patch.easDeviceHosts ?? [],
+      simlockDeviceHosts: patch.simlockDeviceHosts ?? [],
+    },
+    map,
+  );
+  return {
+    patch: {
+      ...patch,
+      ...(patch.sourceControlHosts ? { sourceControlHosts: mapped.sourceControlHosts } : {}),
+      ...(patch.usageLimitSources
+        ? { usageLimitSources: { ...usageLimitSources, ...mapped.usageLimitSources } }
+        : {}),
+      ...(patch.textGenerators
+        ? { textGenerators: { ...textGenerators, ...mapped.textGenerators } }
+        : {}),
+      ...(patch.cloudSpeechCredentials
+        ? { cloudSpeechCredentials: mapped.cloudSpeechCredentials }
+        : {}),
+      ...(patch.easDeviceHosts ? { easDeviceHosts: mapped.easDeviceHosts } : {}),
+      ...(patch.simlockDeviceHosts ? { simlockDeviceHosts: mapped.simlockDeviceHosts } : {}),
+    },
+    providerInstanceMutation: instance
+      ? {
+          ...instance,
+          instance: mapped.providerInstances[instance.instanceId] ?? instance.instance,
+        }
+      : mutation,
   };
 }

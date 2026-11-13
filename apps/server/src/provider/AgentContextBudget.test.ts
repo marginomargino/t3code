@@ -11,6 +11,7 @@ import { AssetSigner } from "../assets/AssetSigner.ts";
 import { ServerSecretStore } from "../auth/ServerSecretStore.ts";
 import { ServerConfig } from "../config.ts";
 import { DeviceService } from "../device/DeviceService.ts";
+import { ClientSettingsRegistry } from "../clientSettings/ClientSettingsRegistry.ts";
 import { ServerEnvironment } from "../environment/ServerEnvironment.ts";
 import { GitWorkflowService } from "../git/GitWorkflowService.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
@@ -37,6 +38,7 @@ import { ProjectSetupScriptRunner } from "../project/ProjectSetupScriptRunner.ts
 import { PullRequestReviewGuideService } from "../pullRequest/PullRequestReviewGuideService.ts";
 import { PullRequestService } from "../pullRequest/PullRequestService.ts";
 import { ScheduledTaskService } from "../scheduledTasks/ScheduledTaskService.ts";
+import { Keybindings } from "../keybindings.ts";
 import { SecretRequests } from "../secrets/SecretRequests.ts";
 import { ServerSettingsService } from "../serverSettings.ts";
 import { SourceControlRepositoryService } from "../sourceControl/SourceControlRepositoryService.ts";
@@ -50,10 +52,12 @@ import budget from "./agentContextBudget.json" with { type: "json" };
 // Registration only stores tool definitions, so the handlers' services are never called.
 const toolHandlerServices = Layer.mergeAll(
   Layer.mock(AssetSigner)({}),
+  Layer.mock(ClientSettingsRegistry)({}),
   Layer.mock(DeviceService)({}),
   Layer.mock(DocumentText)({}),
   Layer.mock(GitVcsDriver)({}),
   Layer.mock(GitWorkflowService)({}),
+  Layer.mock(Keybindings)({}),
   Layer.mock(ManagedProjectFolders)({ namedProjectsRoot: "" }),
   Layer.mock(McpProviderSessions)({}),
   Layer.mock(OrchestratorV2)({}),
