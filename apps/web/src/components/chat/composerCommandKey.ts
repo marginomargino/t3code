@@ -41,6 +41,7 @@ export function composerCommandKeyHandler(input: {
   readonly canSteer: boolean;
   readonly followUpBehavior: ChatComposerProps["settings"]["followUpBehavior"];
   readonly isSoftwareKeyboardOpen: boolean;
+  readonly planModeUiEnabled: boolean;
   readonly isLiteralPendingAnswer: boolean;
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
   readonly promptHistoryEntries: ChatComposerProps["promptHistoryEntries"];
@@ -67,6 +68,7 @@ export function composerCommandKeyHandler(input: {
   readonly setComposerTrigger: (trigger: ComposerTrigger | null) => void;
   readonly setComposerHighlightedItemId: Dispatch<SetStateAction<string | null>>;
   readonly dismissComposerTrigger: (trigger: ComposerTrigger | null) => void;
+  readonly toggleInteractionMode: () => void;
   readonly nudgeComposerMenuHighlight: (key: "ArrowDown" | "ArrowUp") => void;
   readonly onSelectComposerItem: (item: ComposerCommandItem) => void;
   readonly resolveActiveComposerTrigger: () => { trigger: ComposerTrigger | null };
@@ -94,6 +96,7 @@ export function composerCommandKeyHandler(input: {
     canSteer,
     followUpBehavior,
     isSoftwareKeyboardOpen,
+    planModeUiEnabled,
     isLiteralPendingAnswer,
     pendingUserInputs,
     promptHistoryEntries,
@@ -114,6 +117,7 @@ export function composerCommandKeyHandler(input: {
     setComposerTrigger,
     setComposerHighlightedItemId,
     dismissComposerTrigger,
+    toggleInteractionMode,
     nudgeComposerMenuHighlight,
     onSelectComposerItem,
     resolveActiveComposerTrigger,
@@ -210,7 +214,10 @@ export function composerCommandKeyHandler(input: {
       prompt: promptRef.current,
     });
     if (key === "Tab" && event.shiftKey && submissionIntent === null) {
-      return applyListEdit(event, listOutdentForTab);
+      if (applyListEdit(event, listOutdentForTab)) return true;
+      if (!planModeUiEnabled) return false;
+      toggleInteractionMode();
+      return true;
     }
     const { trigger } = resolveActiveComposerTrigger();
     const menuIsActive =

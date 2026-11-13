@@ -24,7 +24,6 @@ import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { threadEnvironment } from "../../state/threads";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { buildThreadRouteParams } from "../../threadRoutes";
-import { DEFAULT_INTERACTION_MODE } from "../../types";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import {
   boundAttachmentIds,
@@ -175,14 +174,14 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
                   modelSelection: target.selection,
                   titleSeed: title,
                   runtimeMode,
-                  interactionMode: DEFAULT_INTERACTION_MODE,
+                  interactionMode: target.interactionMode,
                   bootstrap: {
                     createThread: {
                       projectId: project.id,
                       title,
                       modelSelection: target.selection,
                       runtimeMode,
-                      interactionMode: DEFAULT_INTERACTION_MODE,
+                      interactionMode: target.interactionMode,
                       branch,
                       worktreePath: null,
                       createdAt: createdAt,

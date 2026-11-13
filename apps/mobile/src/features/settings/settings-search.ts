@@ -106,6 +106,8 @@ const SETTINGS_SEARCH_TERMS = {
     "start from remote",
   ],
   SettingsLabs: [
+    "legacy",
+    "plan mode",
     "beta",
     "linked environments",
     "link machine",
