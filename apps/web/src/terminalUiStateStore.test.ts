@@ -3,6 +3,7 @@ import { ThreadId } from "@t3tools/contracts";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
+  agentTerminalIdsClosedOnServer,
   migratePersistedTerminalUiStateStoreState,
   selectThreadTerminalUiState,
   useTerminalUiStateStore,
@@ -181,5 +182,32 @@ describe("terminalUiStateStore actions", () => {
         THREAD_REF,
       ).terminalIds,
     ).toEqual(["term-2", "term-1"]);
+  });
+
+  it("drops a server-closed tab and shows the id again when the server reopens it", () => {
+    const store = useTerminalUiStateStore.getState();
+    const terminalIds = () =>
+      selectThreadTerminalUiState(
+        useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
+        THREAD_REF,
+      ).terminalIds;
+    store.reconcileTerminalIds(THREAD_REF, ["term-1", "agent-server"]);
+    store.closeTerminal(THREAD_REF, "agent-server");
+
+    store.forgetServerClosedTerminals(THREAD_REF, ["agent-server"]);
+    store.reconcileTerminalIds(THREAD_REF, ["term-1", "agent-server"]);
+    expect(terminalIds()).toEqual(["term-1", "agent-server"]);
+
+    store.forgetServerClosedTerminals(THREAD_REF, ["agent-server"]);
+    expect(terminalIds()).toEqual(["term-1"]);
+  });
+
+  it("infers a server close only for agent tabs, which a server restart does not reattach", () => {
+    expect(
+      agentTerminalIdsClosedOnServer(
+        new Set(["term-1", "setup-setup", "agent-server", "agent-watch"]),
+        new Set(["agent-watch"]),
+      ),
+    ).toEqual(["agent-server"]);
   });
 });
