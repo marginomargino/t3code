@@ -236,6 +236,13 @@ import { stackedThreadToast, toastManager } from "./ui/toast";
 import { titleRegenerationToast } from "./threadTitleRegenerationToast";
 import { copyThreadReference } from "../lib/copyThreadReference";
 import { threadChipCopyTarget } from "@t3tools/client-runtime/thread-reference";
+import {
+  AI_THREAD_FIND_MAX_LENGTH,
+  AI_THREAD_FIND_MIN_LENGTH,
+  AiThreadFindResults,
+  AiThreadFindStatus,
+  useStartAiThreadFind,
+} from "./AiThreadFind";
 import { Button } from "./ui/button";
 import { isProjectPinShortcut, ProjectPinButton } from "./ProjectPinButton";
 import {
@@ -1460,6 +1467,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     return mapping;
   })();
 
+  const startAiThreadFind = useStartAiThreadFind();
   const navigateToThread = (threadRef: ScopedThreadRef) => {
     if (useThreadSelectionStore.getState().selectedThreadKeys.size > 0) {
       clearSelection();
@@ -1521,6 +1529,19 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   };
   const handleThreadSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    const description = threadSearchQuery.trim().slice(0, AI_THREAD_FIND_MAX_LENGTH);
+    // The open thread's environment holds the history the user is in; primary is the fallback.
+    const aiFindEnvironmentId = routeThreadRef?.environmentId ?? primaryEnvironmentId;
+    if (
+      event.key === "Tab" &&
+      event.shiftKey &&
+      aiFindEnvironmentId !== null &&
+      description.length >= AI_THREAD_FIND_MIN_LENGTH
+    ) {
+      event.preventDefault();
+      void startAiThreadFind(description, aiFindEnvironmentId);
+      return;
+    }
     if (event.key === "Escape" && isSearchingThreads) {
       event.preventDefault();
       event.stopPropagation();
@@ -3212,6 +3233,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         }
       >
         <SidebarGroup className="flex-1" role="presentation">
+          <AiThreadFindStatus query={threadSearchQuery} />
+          <AiThreadFindResults onOpenThread={navigateToThread} />
           {isSearchingThreads ? (
             threadSearchResults.length > 0 ? (
               <TooltipProvider
