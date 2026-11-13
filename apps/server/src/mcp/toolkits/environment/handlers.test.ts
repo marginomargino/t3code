@@ -209,7 +209,7 @@ const settingsHarness = Effect.fn(function* (initial: ServerSettings) {
     providerInstanceMutation,
     ...params
   }: {
-    readonly patch?: Readonly<Record<string, unknown>>;
+    readonly patch?: Schema.JsonObject;
     readonly providerInstanceMutation?: ProviderInstanceMutation;
   }) =>
     Effect.gen(function* () {
@@ -221,7 +221,9 @@ const settingsHarness = Effect.fn(function* (initial: ServerSettings) {
       const results = yield* toolkit
         .handle("t3_settings_update", {
           ...params,
-          ...(encodedMutation === undefined ? {} : { providerInstanceMutation: encodedMutation }),
+          ...(encodedMutation === undefined
+            ? {}
+            : { providerInstanceMutation: encodedMutation as unknown as Schema.Json }),
         })
         .pipe(Stream.unwrap, Stream.runCollect);
       return results.at(-1)?.encodedResult;
@@ -234,10 +236,7 @@ const settingsHarness = Effect.fn(function* (initial: ServerSettings) {
         .pipe(Stream.unwrap, Stream.runCollect);
       return results.at(-1)?.encodedResult;
     }).pipe(Effect.provide(layer));
-  const updateClient = (params: {
-    readonly clientId: string;
-    readonly patch: Readonly<Record<string, unknown>>;
-  }) =>
+  const updateClient = (params: { readonly clientId: string; readonly patch: Schema.JsonObject }) =>
     Effect.gen(function* () {
       const toolkit = yield* EnvironmentToolkit;
       const results = yield* toolkit
@@ -427,7 +426,7 @@ it.effect("saves a keybinding only for a command T3 knows", () =>
 
 it.effect.each<{
   readonly name: string;
-  readonly patch: Readonly<Record<string, unknown>>;
+  readonly patch: Schema.JsonObject;
   readonly written: unknown;
 }>([
   {
