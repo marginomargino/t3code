@@ -3477,6 +3477,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     Show all projects
                   </button>
                 </>
+              ) : scopedEnvironmentLabel ? (
+                `No threads on ${scopedEnvironmentLabel} yet`
               ) : (
                 "No threads yet"
               )}
