@@ -590,7 +590,8 @@ export type ProviderAdapterV2RollbackTarget =
       readonly checkpointId: CheckpointId;
       readonly appRunOrdinal: number;
       readonly providerTurn: OrchestrationV2ProviderTurn;
-      readonly message?: Pick<OrchestrationV2ConversationMessage, "role" | "text" | "attachments">;
+      readonly message?: Pick<OrchestrationV2ConversationMessage, "role" | "text" | "attachments"> &
+        Partial<Pick<OrchestrationV2ConversationMessage, "createdBy" | "creationSource">>;
     };
 
 export interface ProviderAdapterV2RollbackThreadInput {

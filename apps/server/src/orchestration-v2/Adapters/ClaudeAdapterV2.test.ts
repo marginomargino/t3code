@@ -8160,6 +8160,27 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         pastSilentTurn.providerThread.nativeConversationHeadRef?.nativeId,
         earlierCursor,
       );
+      const pastSilentContinuation = yield* harness.runtime.rollbackThread({
+        providerThread: harness.providerThread,
+        target: {
+          type: "provider_turn",
+          checkpointId: CheckpointId.make("checkpoint-claude-cursor-subagent-only"),
+          appRunOrdinal: 1,
+          providerTurn,
+          message: {
+            role: "user",
+            text: "Background task completed.",
+            attachments: [],
+            createdBy: "agent",
+            creationSource: "provider",
+          },
+        },
+        providerThreadTurns: turnsAcrossSilent,
+      });
+      assert.equal(
+        pastSilentContinuation.providerThread.nativeConversationHeadRef?.nativeId,
+        earlierCursor,
+      );
       // Forks omit rolled-back turns, which Claude's transcript still holds past the pinned head.
       yield* harness.runtime.forkThread({
         sourceProviderThread: pastSilentTurn.providerThread,

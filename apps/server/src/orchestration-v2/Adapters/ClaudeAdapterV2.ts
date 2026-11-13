@@ -2593,8 +2593,11 @@ const resolveClaudeRollbackResumeSessionAt = Effect.fn(
         return null;
       }
 
-      // Only compaction can be omitted without dropping a retained user prompt.
-      if (target.message !== undefined && isCompactionCommandMessage(target.message)) {
+      // Compactions and continuations (which never prompt Claude) retain no user prompt to drop.
+      if (
+        target.message !== undefined &&
+        (isCompactionCommandMessage(target.message) || isClaudeContinuationMessage(target.message))
+      ) {
         const earlierTurn = input.providerThreadTurns
           .filter((turn) => turn.ordinal < target.providerTurn.ordinal)
           .toSorted((left, right) => left.ordinal - right.ordinal)
@@ -4311,10 +4314,16 @@ function isClaudeActiveSteeringAbortResult(message: SDKResultMessage): boolean {
   );
 }
 
+function isClaudeContinuationMessage(
+  message: Partial<Pick<OrchestrationV2ConversationMessage, "createdBy" | "creationSource">>,
+): boolean {
+  return message.createdBy === "agent" && message.creationSource === "provider";
+}
+
 function isClaudeProviderContinuationTurn(
   input: ProviderAdapter.ProviderAdapterV2TurnInput,
 ): boolean {
-  return input.message.createdBy === "agent" && input.message.creationSource === "provider";
+  return isClaudeContinuationMessage(input.message);
 }
 
 function isClaudePromptEchoGatedFrame(message: SDKMessage): boolean {
