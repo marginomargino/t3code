@@ -241,6 +241,12 @@ describe("ssh tunnel scripts", () => {
       SshTunnel.buildRemoteT3RunnerScript(ARCHIVE),
       "T3_ARCHIVE_VERSION='1.2.3-preview.20260911.4'",
     );
+    const localMirror = SshTunnel.buildRemoteT3RunnerScript({
+      archiveVersion: "0.1.4-local.g19543d12d7",
+      releaseBaseUrl: "file:///Users/me/t3-releases/",
+    });
+    assert.include(localMirror, "T3_ARCHIVE_VERSION='0.1.4-local.g19543d12d7'");
+    assert.include(localMirror, "T3_RELEASE_BASE_URL='file:///Users/me/t3-releases'");
   });
 
   it.each([
