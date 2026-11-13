@@ -15,6 +15,10 @@ const ICON_PATHS: Record<string, ReadonlyArray<{ tag: string; attrs: Record<stri
     { tag: "circle", attrs: { cx: "12", cy: "14", r: "8" } },
   ],
   "chevron-right": [{ tag: "path", attrs: { d: "m9 19 7-7-7-7" } }],
+  "rotate-ccw": [
+    { tag: "path", attrs: { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" } },
+    { tag: "path", attrs: { d: "M3 3v5h5" } },
+  ],
   "circle-check": [
     { tag: "circle", attrs: { cx: "12", cy: "12", r: "10" } },
     { tag: "path", attrs: { d: "m9 12 2 2 4-4" } },
