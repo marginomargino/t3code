@@ -7,7 +7,7 @@ import {
   TerminalMcpStopResult,
   TerminalMcpTarget,
 } from "@t3tools/contracts";
-import { Tool, Toolkit } from "effect/ai";
+import { McpSchema, Tool, Toolkit } from "effect/ai";
 
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
@@ -32,7 +32,8 @@ const TerminalRunTool = Tool.make("t3_terminal_run", {
   .annotate(Tool.Readonly, false)
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, false)
-  .annotate(Tool.OpenWorld, true);
+  .annotate(Tool.OpenWorld, true)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
 
 const TerminalReadTool = Tool.make("t3_terminal_read", {
   description:
@@ -47,7 +48,8 @@ const TerminalReadTool = Tool.make("t3_terminal_read", {
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true)
-  .annotate(Tool.OpenWorld, false);
+  .annotate(Tool.OpenWorld, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
 
 const TerminalStopTool = Tool.make("t3_terminal_stop", {
   description: "Stop a `t3_terminal_run` command and close its tab.",
@@ -61,6 +63,7 @@ const TerminalStopTool = Tool.make("t3_terminal_stop", {
   .annotate(Tool.Readonly, false)
   .annotate(Tool.Destructive, true)
   .annotate(Tool.Idempotent, true)
-  .annotate(Tool.OpenWorld, false);
+  .annotate(Tool.OpenWorld, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
 
 export const TerminalToolkit = Toolkit.make(TerminalRunTool, TerminalReadTool, TerminalStopTool);
