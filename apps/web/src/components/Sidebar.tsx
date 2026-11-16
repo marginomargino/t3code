@@ -62,10 +62,7 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@t3tools/contracts";
-import {
-  resolveListedAncestorThreadRef,
-  type OlderSettledScope,
-} from "@t3tools/client-runtime/state/threads";
+import { resolveListedAncestorThreadRef } from "@t3tools/client-runtime/state/threads";
 
 import {
   CheckIcon,
