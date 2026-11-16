@@ -2437,7 +2437,7 @@ export const make = Effect.gen(function* () {
       snapshot.claudeFields,
       snapshot.droppedMessageCount,
     );
-    if (thread === null) return null;
+    if (thread === null || thread === "empty") return null;
     return {
       thread,
       source: {

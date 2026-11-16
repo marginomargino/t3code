@@ -117,7 +117,9 @@ const project = {
   deletedAt: null,
 };
 
-function claudeMatch(source: ReturnType<typeof candidate>): AgentSessionScanner.ClaudeSessionMatch {
+function claudeMatch(
+  source: Extract<AgentSessionScanner.AgentSessionRecentThread, { _tag: "Importable" }>,
+): AgentSessionScanner.ClaudeSessionMatch {
   return {
     sessionId: source.source.providerSessionId,
     title: source.thread.title,
@@ -270,6 +272,7 @@ const makeImporter = Effect.fn(function* (
                 findClaudeSessions: (query) =>
                   Effect.succeed(
                     candidates.flatMap((entry) =>
+                      entry._tag === "Importable" &&
                       entry.source.provider === "claudeAgent" &&
                       entry.source.providerSessionId === query.toLowerCase()
                         ? [claudeMatch(entry)]
@@ -278,9 +281,12 @@ const makeImporter = Effect.fn(function* (
                   ),
                 readClaudeSession: (match) =>
                   Effect.succeed(
-                    candidates.find(
-                      (entry) => entry.source.providerSessionId === match.sessionId,
-                    ) ?? null,
+                    candidates.flatMap((entry) =>
+                      entry._tag === "Importable" &&
+                      entry.source.providerSessionId === match.sessionId
+                        ? [entry]
+                        : [],
+                    )[0] ?? null,
                   ),
               })
             : Layer.succeed(AgentSessionScanner.AgentSessionScanner, realScan.scanner),
