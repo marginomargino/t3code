@@ -1631,6 +1631,7 @@ describe("resolveSidebarRouteReveal", () => {
       resolveSidebarRouteReveal({
         reveal: { observedKey: "environment-test:other", pendingKey: null },
         routeKey: hiddenKey,
+        routeKeyInPlace: false,
         isSearching: false,
         scope: { environmentId: "environment-other", projectKeys: null },
         delegatedUnderParent: new Set(),
@@ -1644,6 +1645,7 @@ describe("resolveSidebarRouteReveal", () => {
       resolveSidebarRouteReveal({
         reveal: { observedKey: "environment-test:other", pendingKey: null },
         routeKey: hiddenKey,
+        routeKeyInPlace: false,
         isSearching: false,
         scope: { environmentId: "environment-test", projectKeys: scope.projectKeys },
         delegatedUnderParent: new Set(),
