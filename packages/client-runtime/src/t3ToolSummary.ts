@@ -1092,10 +1092,9 @@ export function summarizeT3ToolCalls(
       const count = countEntities(entityIds("terminalId"));
       label = done
         ? resolve(
-            msg(
-              "{count, plural, one {Read {count} terminal} other {Read {count} terminals}}",
-              { count },
-            ),
+            msg("{count, plural, one {Read {count} terminal} other {Read {count} terminals}}", {
+              count,
+            }),
           )
         : resolve(
             msg(
