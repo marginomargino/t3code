@@ -6,7 +6,7 @@ import {
   type PointerEventHandler,
   type ReactNode,
 } from "react";
-import { msg, useGT, useMessages } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -385,7 +385,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
             {...pointerFocusProps}
             disabled={isSendBusy || isSendDisabled || isEnvironmentUnavailable}
           >
-            {isSendBusy ? "Sending..." : "Refine"}
+            {isSendBusy ? gt("Sending...") : gt("Refine")}
           </button>
         </>
       );
@@ -401,7 +401,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
             {...pointerFocusProps}
             disabled={isSendBusy || isSendDisabled || isEnvironmentUnavailable}
           >
-            {isSendBusy ? "Sending..." : "Implement"}
+            {isSendBusy ? gt("Sending...") : gt("Implement")}
           </button>
           <Menu>
             <MenuTrigger
@@ -412,7 +412,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
                     messageActionPillClassName,
                     "h-9 rounded-l-none border-l border-message-action-foreground/20 px-2 sm:h-8",
                   )}
-                  aria-label="Implementation actions"
+                  aria-label={gt("Implementation actions")}
                   onMouseDown={
                     preserveComposerFocusOnPointerDown
                       ? (event) => event.preventDefault()
@@ -431,7 +431,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
                   if (canOperateThread) onImplementPlanInNewThread?.();
                 }}
               >
-                Implement in a new thread
+                <T>Implement in a new thread</T>
               </MenuItem>
             </MenuPopup>
           </Menu>
