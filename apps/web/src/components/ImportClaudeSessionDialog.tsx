@@ -8,6 +8,7 @@ import {
 import type { ClaudeSessionCandidate, EnvironmentId } from "@t3tools/contracts";
 import type * as Cause from "effect/Cause";
 import { Atom } from "effect/reactivity";
+import { T, useGT } from "gt-react";
 import { useRef, useState } from "react";
 
 import { appAtomRegistry } from "../rpc/atomRegistry";
@@ -53,6 +54,7 @@ function failureMessage(result: { readonly cause: Cause.Cause<unknown> }, fallba
 
 function ImportClaudeSessionDialog({ environmentId }: { environmentId: EnvironmentId }) {
   const navigate = useNavigate();
+  const gt = useGT();
   const search = useAtomCommand(claudeSessionSearch, { reportFailure: false });
   const importSession = useAtomCommand(claudeSessionImport, { reportFailure: false });
   const inputRef = useRef<HTMLInputElement>(null);
@@ -78,7 +80,7 @@ function ImportClaudeSessionDialog({ environmentId }: { environmentId: Environme
       return;
     }
     if (isAtomCommandInterrupted(result)) return;
-    setError(failureMessage(result, "Could not search Claude sessions."));
+    setError(failureMessage(result, gt("Could not search Claude sessions.")));
   };
 
   const runImport = async (sessionId: string) => {
@@ -89,7 +91,7 @@ function ImportClaudeSessionDialog({ environmentId }: { environmentId: Environme
     setImportingId(null);
     if (result._tag === "Failure") {
       if (isAtomCommandInterrupted(result)) return;
-      setError(failureMessage(result, "Could not import the Claude session."));
+      setError(failureMessage(result, gt("Could not import the Claude session.")));
       return;
     }
     closeImportClaudeSessionDialog();
@@ -108,16 +110,18 @@ function ImportClaudeSessionDialog({ environmentId }: { environmentId: Environme
     >
       <DialogPopup className="max-w-xl" initialFocus={inputRef}>
         <DialogHeader>
-          <DialogTitle>Import Claude session</DialogTitle>
+          <DialogTitle>
+            <T>Import Claude session</T>
+          </DialogTitle>
           <DialogDescription>
-            Find a Claude Code session by its ID or title and continue it as a thread.
+            <T>Find a Claude Code session by its ID or title and continue it as a thread.</T>
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
           <div className="flex gap-2">
             <Input
               ref={inputRef}
-              placeholder="Session ID or title"
+              placeholder={gt("Session ID or title")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
@@ -132,12 +136,14 @@ function ImportClaudeSessionDialog({ environmentId }: { environmentId: Environme
               onClick={() => void submitSearch()}
               disabled={busy || query.trim().length === 0}
             >
-              {searching ? "Searching..." : "Search"}
+              {searching ? gt("Searching...") : gt("Search", { $context: "verb, button" })}
             </Button>
           </div>
           {error ? <p className="text-destructive text-xs">{error}</p> : null}
           {results === null ? null : results.sessions.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No matching Claude sessions.</p>
+            <p className="text-muted-foreground text-sm">
+              <T>No matching Claude sessions.</T>
+            </p>
           ) : (
             <ul className="flex max-h-80 flex-col gap-1 overflow-y-auto">
               {results.sessions.map((session) => (
@@ -153,7 +159,7 @@ function ImportClaudeSessionDialog({ environmentId }: { environmentId: Environme
                     </p>
                     {session.projectId === null ? (
                       <p className="text-muted-foreground text-xs">
-                        Add this folder as a project first
+                        <T>Add this folder as a project first</T>
                       </p>
                     ) : null}
                   </div>
@@ -164,7 +170,9 @@ function ImportClaudeSessionDialog({ environmentId }: { environmentId: Environme
                     onClick={() => void runImport(session.sessionId)}
                     disabled={busy || session.projectId === null}
                   >
-                    {importingId === session.sessionId ? "Importing..." : "Import"}
+                    {importingId === session.sessionId
+                      ? gt("Importing...")
+                      : gt("Import", { $context: "verb, button" })}
                   </Button>
                 </li>
               ))}
