@@ -5,7 +5,9 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import type { EnvironmentId, RunId, ThreadId } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
+import { msg } from "gt-react";
 
+import { m } from "~/i18n/messages";
 import { newThreadId } from "~/lib/utils";
 import { waitForThreadShell } from "../state/entities";
 import { threadEnvironment } from "../state/threads";
@@ -43,10 +45,16 @@ export function useForkThread() {
       if (isAtomCommandInterrupted(result)) return null;
       const error = squashAtomCommandFailure(result);
       if (error instanceof Error) return error.message;
-      return runId === undefined ? "Failed to fork this thread." : "Failed to fork this response.";
+      return runId === undefined
+        ? m(msg("Failed to fork this thread."))
+        : m(msg("Failed to fork this response."));
     }
     if (!(await waitForThreadShell(targetThreadRef))) {
-      return "The fork was created, but its thread data did not reach this client. Reconnect and try opening it from the sidebar.";
+      return m(
+        msg(
+          "The fork was created, but its thread data did not reach this client. Reconnect and try opening it from the sidebar.",
+        ),
+      );
     }
     await navigate({
       to: "/$environmentId/$threadId",

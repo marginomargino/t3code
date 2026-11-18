@@ -116,9 +116,9 @@ export function V2LifecycleRow(props: {
   if (item.type === "merge_back") {
     return (
       <TimelineSystemDivider
-        label={`Fork “${item.sourceThreadTitle}” merged back`}
+        label={gt("Fork “{title}” merged back", { title: item.sourceThreadTitle })}
         icon={GitForkIcon}
-        actionLabel="Open fork"
+        actionLabel={gt("Open fork")}
         onAction={() => props.onOpenThread(item.sourceThreadId)}
       />
     );

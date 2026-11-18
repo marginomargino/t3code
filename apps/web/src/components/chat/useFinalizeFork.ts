@@ -1,6 +1,8 @@
 import { useAtomValue } from "@effect/atom-react";
+import { msg } from "gt-react";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 
+import { m } from "~/i18n/messages";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import {
   isAtomCommandInterrupted,
@@ -21,16 +23,19 @@ export function useFinalizeFork(environmentId: EnvironmentId) {
       const error = squashAtomCommandFailure(result);
       toastManager.add({
         type: "error",
-        title: "Could not finalize the fork",
+        title: m(msg("Could not finalize the fork")),
         description: error instanceof Error ? error.message : undefined,
       });
       return;
     }
     toastManager.add({
       type: "info",
-      title: "Finalizing fork",
-      description:
-        "The agent is writing a recap. It reaches the parent thread with your next message there, and this fork will be settled.",
+      title: m(msg("Finalizing fork")),
+      description: m(
+        msg(
+          "The agent is writing a recap. It reaches the parent thread with your next message there, and this fork will be settled.",
+        ),
+      ),
     });
   };
   return { canFinalize, finalizeFork };

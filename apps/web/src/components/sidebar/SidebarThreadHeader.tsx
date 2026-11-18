@@ -111,7 +111,9 @@ export function SidebarThreadHeader({
       <div className="flex shrink-0 items-center">
         {forkDisplayToggle ? (
           <SidebarHeaderIconButton
-            label={forkDisplayToggle.nested ? "Show forks separately" : "Show forks under parent"}
+            label={
+              forkDisplayToggle.nested ? gt("Show forks separately") : gt("Show forks under parent")
+            }
             aria-pressed={forkDisplayToggle.nested}
             onClick={forkDisplayToggle.onToggle}
           >
