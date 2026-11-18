@@ -2912,8 +2912,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               toastManager.add(
                 stackedThreadToast({
                   type: "error",
-                  title: "Failed to restart agent session",
-                  description: error instanceof Error ? error.message : "An error occurred.",
+                  title: gt("Failed to restart agent session"),
+                  description: error instanceof Error ? error.message : gt("An error occurred."),
                 }),
               );
             }
