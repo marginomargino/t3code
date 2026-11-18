@@ -179,6 +179,7 @@ function AssistantFinalizeForkButton({ runId }: { readonly runId: RunId | null }
   const ctx = use(TimelineRowCtx);
   const activity = use(TimelineRowActivityCtx);
   const [busy, setBusy] = useState(false);
+  const gt = useGT();
   const finalizeFork = ctx.finalizeFork;
   if (finalizeFork === null || runId !== finalizeFork.runId) return null;
 
@@ -195,14 +196,16 @@ function AssistantFinalizeForkButton({ runId }: { readonly runId: RunId | null }
               setBusy(true);
               void finalizeFork.onFinalize().finally(() => setBusy(false));
             }}
-            aria-label="Finalize fork"
+            aria-label={gt("Finalize fork")}
           />
         }
       >
         <PullRequestGlyph.merged className={cn("size-3", busy && "animate-pulse")} />
       </TooltipTrigger>
       <TooltipPopup side="top">
-        Finalize fork: the agent writes a recap for the parent thread, then this fork is settled
+        <T>
+          Finalize fork: the agent writes a recap for the parent thread, then this fork is settled
+        </T>
       </TooltipPopup>
     </Tooltip>
   );

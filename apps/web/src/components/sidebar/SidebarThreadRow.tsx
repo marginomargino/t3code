@@ -676,11 +676,12 @@ function ForkParentLink(props: {
   label: string;
   onActivate: (event: ReactMouseEvent | ReactKeyboardEvent) => void;
 }) {
+  const gt = useGT();
   return (
     <span
       role="link"
       tabIndex={0}
-      aria-label={`Open parent thread ${props.label}`}
+      aria-label={gt("Open parent thread {label}", { label: props.label })}
       onClick={props.onActivate}
       onDoubleClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => {

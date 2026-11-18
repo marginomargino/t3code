@@ -2929,7 +2929,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               toastManager.add(
                 stackedThreadToast({
                   type: "error",
-                  title: "Failed to fork thread",
+                  title: gt("Failed to fork thread"),
                   description: error,
                 }),
               );

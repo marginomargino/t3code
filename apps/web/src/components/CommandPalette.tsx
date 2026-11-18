@@ -1600,7 +1600,7 @@ function OpenCommandPaletteDialog(props: {
       kind: "action",
       value: "action:fork-thread",
       searchTerms: ["fork", "branch", "copy", "duplicate", "thread"],
-      title: "Fork thread",
+      title: gt("Fork thread"),
       disabled:
         !canOperateActiveThread ||
         !threadCanFork({

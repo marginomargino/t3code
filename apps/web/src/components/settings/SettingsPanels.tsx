@@ -990,12 +990,14 @@ export function GeneralSettingsPanel() {
           }
         />
         <SettingsRow
-          {...searchableSetting("sidebar-fork-display")}
-          description="Nest forked threads under their parent when both are in the same sidebar section."
+          {...setting("sidebar-fork-display")}
+          description={
+            <T>Nest forked threads under their parent when both are in the same sidebar section.</T>
+          }
           resetAction={
             settings.sidebarForkDisplay !== DEFAULT_UNIFIED_SETTINGS.sidebarForkDisplay ? (
               <SettingResetButton
-                label="fork display"
+                ariaLabel={gt("Reset fork display to default")}
                 onClick={() =>
                   updateSettings({
                     sidebarForkDisplay: DEFAULT_UNIFIED_SETTINGS.sidebarForkDisplay,
@@ -1010,7 +1012,7 @@ export function GeneralSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ sidebarForkDisplay: checked ? "nested" : "flat" })
               }
-              aria-label="Show forks under parent"
+              aria-label={gt("Show forks under parent")}
             />
           }
         />
