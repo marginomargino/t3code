@@ -1405,8 +1405,8 @@ function OpenCommandPaletteDialog(props: {
       kind: "action",
       value: "action:import-claude-session",
       searchTerms: ["import", "claude", "session", "resume", "history", "transcript"],
-      title: "Import Claude session…",
-      description: "Continue a Claude Code session by its ID or title",
+      title: gt("Import Claude session…"),
+      description: gt("Continue a Claude Code session by its ID or title"),
       icon: <HistoryIcon className={ITEM_ICON_CLASS} />,
       run: async () => {
         openImportClaudeSessionDialog(claudeImportEnvironmentId);
