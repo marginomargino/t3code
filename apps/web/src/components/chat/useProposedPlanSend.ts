@@ -19,7 +19,9 @@ import type {
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { truncate } from "@t3tools/shared/String";
 import { useNavigate } from "@tanstack/react-router";
+import { msg } from "gt-react";
 import type { Dispatch, SetStateAction } from "react";
+import { m } from "~/i18n/messages";
 import { newMessageId, newThreadId } from "~/lib/utils";
 import { useComposerDraftStore } from "../../composerDraftStore";
 import type { ComposerHandleRef } from "../../composerHandleContext";
@@ -224,7 +226,7 @@ export function usePlanFollowUpSend(input: PlanFollowUpSendInput) {
       const error = squashAtomCommandFailure(failure);
       setThreadError(
         threadIdForSend,
-        error instanceof Error ? error.message : "Failed to send plan follow-up.",
+        error instanceof Error ? error.message : m(msg("Failed to send plan follow-up.")),
       );
     }
     sendInFlightRef.current = false;
@@ -382,11 +384,11 @@ export function useImplementPlanInNewThread(input: ImplementPlanInNewThreadInput
         toastManager.add(
           stackedThreadToast({
             type: "error",
-            title: "Could not start implementation thread",
+            title: m(msg("Could not start implementation thread")),
             description:
               error instanceof Error
                 ? error.message
-                : "An error occurred while creating the new thread.",
+                : m(msg("An error occurred while creating the new thread.")),
           }),
         );
       }
