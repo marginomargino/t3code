@@ -1,10 +1,8 @@
 import { useAtomValue } from "@effect/atom-react";
-import {
-  collectLimitAccounts,
-  collectLimitPools,
-  formatDuration,
-} from "@t3tools/shared/usageLimits";
+import { collectLimitAccounts, collectLimitPools } from "@t3tools/shared/usageLimits";
+import { formatDuration } from "@t3tools/shared/usageLimitsCopy";
 import { useNavigate } from "@tanstack/react-router";
+import { T, useGT, useMessages } from "gt-react";
 import { ChartColumnIcon } from "lucide-react";
 import { Fragment, useState } from "react";
 
@@ -25,6 +23,8 @@ function providerLabel(driver: string): string {
 }
 
 export function ThreadUsagePanel() {
+  const gt = useGT();
+  const messages = useMessages();
   const navigate = useNavigate();
   const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
   const [hiddenDrivers] = useState(
@@ -39,7 +39,7 @@ export function ThreadUsagePanel() {
   // Measure from the newest report so countdowns advance with provider pushes, not a clock.
   const now = Math.max(0, ...accounts.map((account) => Date.parse(account.limits.checkedAt)));
   const pools = collectLimitPools(accounts, now).flatMap((pool) => {
-    const rows = hiddenDrivers.has(pool.driver) ? [] : usageLimitRows(pool);
+    const rows = hiddenDrivers.has(pool.driver) ? [] : usageLimitRows(pool, messages);
     return rows.length > 0 ? [{ driver: pool.driver, rows }] : [];
   });
   if (pools.length === 0) return null;
@@ -47,7 +47,7 @@ export function ThreadUsagePanel() {
   return (
     <ThreadDetailsSection
       headingId="thread-details-usage-heading"
-      title="Usage"
+      title={gt("Usage")}
       data-thread-details-usage
       actions={
         <Tooltip>
@@ -57,14 +57,16 @@ export function ThreadUsagePanel() {
                 size="icon-xs"
                 variant="ghost"
                 part="icon"
-                aria-label="Open usage"
+                aria-label={gt("Open usage")}
                 onClick={() => void navigate({ to: "/usage" })}
               >
                 <ChartColumnIcon className="size-3.5" />
               </ThreadDetailsControl>
             }
           />
-          <TooltipPopup>Open usage</TooltipPopup>
+          <TooltipPopup>
+            <T>Open usage</T>
+          </TooltipPopup>
         </Tooltip>
       }
     >
@@ -74,11 +76,20 @@ export function ThreadUsagePanel() {
             {rows.map((row, index) => {
               const resetsIn =
                 row.nextResetAt !== null && row.nextResetAt > now
-                  ? `resets in ${formatDuration(row.nextResetAt - now)}`
+                  ? formatDuration(row.nextResetAt - now, messages)
                   : null;
-              const summary = `${providerLabel(driver)} ${row.label}: ${row.remainingPercent}% left${
-                resetsIn ? `, ${resetsIn}` : ""
-              }`;
+              const summary = resetsIn
+                ? gt("{provider} {window}: {percent}% left, resets in {duration}", {
+                    provider: providerLabel(driver),
+                    window: row.label,
+                    percent: row.remainingPercent,
+                    duration: resetsIn,
+                  })
+                : gt("{provider} {window}: {percent}% left", {
+                    provider: providerLabel(driver),
+                    window: row.label,
+                    percent: row.remainingPercent,
+                  });
               return (
                 <Fragment key={row.id}>
                   <span className="truncate font-medium text-foreground/80">

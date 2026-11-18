@@ -1,5 +1,8 @@
 import type { ServerProviderUsageWindow } from "@t3tools/contracts";
 import { displayLimitWindows, type LimitPool } from "@t3tools/shared/usageLimits";
+import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "~/i18n/messages";
 
 export interface UsageLimitRow {
   readonly id: string;
@@ -17,9 +20,9 @@ const KIND_ORDER: ReadonlyArray<ServerProviderUsageWindow["kind"]> = [
 
 type PoolWindow = LimitPool["windows"][number];
 
-function shortLabel(window: PoolWindow) {
-  if (window.kind === "weekly") return "Week";
-  if (window.kind === "monthly") return "Month";
+function shortLabel(window: PoolWindow, resolve: MessageResolver) {
+  if (window.kind === "weekly") return resolve(msg("Week"));
+  if (window.kind === "monthly") return resolve(msg("Month"));
   // Pooling drops a session's duration once its weekly window is spent, so read the report.
   const durationMins = window.members
     .map(
@@ -37,7 +40,10 @@ function shortLabel(window: PoolWindow) {
  * One row per window kind, keeping the tightest window so the card stays a few lines tall.
  * Beside session and weekly windows, monthly and other quotas show only once exhausted.
  */
-export function usageLimitRows(pool: LimitPool): readonly UsageLimitRow[] {
+export function usageLimitRows(
+  pool: LimitPool,
+  resolve: MessageResolver = m,
+): readonly UsageLimitRow[] {
   const windows = displayLimitWindows(pool);
   const hasRateWindows = windows.some(
     (window) => window.kind === "session" || window.kind === "weekly",
@@ -53,7 +59,7 @@ export function usageLimitRows(pool: LimitPool): readonly UsageLimitRow[] {
     return [
       {
         id: tightest.id,
-        label: shortLabel(tightest),
+        label: shortLabel(tightest, resolve),
         remainingPercent: tightest.remainingPercent,
         nextResetAt: nextReset?.at ?? null,
       },
