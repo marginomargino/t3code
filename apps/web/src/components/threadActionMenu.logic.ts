@@ -238,8 +238,10 @@ export function buildThreadActionMenuItems(
           {
             id: "filter-by-environment" as const,
             label: state.environmentFilter.isActive
-              ? "Show all environments"
-              : `Filter by ${state.environmentFilter.label}`,
+              ? resolve(msg("Show all environments"))
+              : resolve(
+                  msg("Filter by {environment}", { environment: state.environmentFilter.label }),
+                ),
             icon: "server",
           },
         ]
