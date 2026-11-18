@@ -1,5 +1,5 @@
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
-import { msg, T, useGT, useMessages } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 import { m } from "../i18n/messages";
 import { attachSidebarTree } from "../lib/sidebarTree";
 import { EnvironmentId, type ScopedProjectRef } from "@t3tools/contracts";
@@ -2823,7 +2823,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               environmentFilter:
                 environmentScopeItems.length > 0
                   ? {
-                      label: environmentLabelById.get(thread.environmentId) ?? "this environment",
+                      label:
+                        environmentLabelById.get(thread.environmentId) ?? gt("this environment"),
                       isActive: environmentScopeId === thread.environmentId,
                     }
                   : null,
@@ -3616,7 +3617,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   </button>
                 </>
               ) : scopedEnvironmentLabel ? (
-                `No threads on ${scopedEnvironmentLabel} yet`
+                <T>
+                  No threads on <Var>{scopedEnvironmentLabel}</Var> yet
+                </T>
               ) : (
                 <T>No threads yet</T>
               )}
