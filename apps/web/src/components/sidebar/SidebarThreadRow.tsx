@@ -837,7 +837,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         ? {
             label: gt("Waiting", { $context: "thread status" }),
             icon: "waiting" as const,
-            className: "text-muted-foreground",
+            className: "text-fuchsia-600 dark:text-fuchsia-300",
           }
         : status === "approval"
           ? {
