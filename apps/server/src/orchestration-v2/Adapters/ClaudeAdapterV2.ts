@@ -14294,10 +14294,15 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 const transcript = yield* claudeTranscriptState(nativeThreadId).pipe(
                   Effect.orElseSucceed(() => "missing" as const),
                 );
-                // Opening a missing imported session would start an empty one under its id.
+                // Opening a missing imported session would start an empty one under its id; a never-opened
+                // fork import without its transcript is restored from the fallback summary instead.
+                const neverOpened =
+                  threadInput.providerThread.providerSessionId === null &&
+                  threadInput.providerThread.firstRunOrdinal === null;
                 if (
                   transcript === "empty" ||
-                  (transcript === "missing" && threadInput.importedNativeSession === true)
+                  (transcript === "missing" &&
+                    (threadInput.importedNativeSession === true || neverOpened))
                 ) {
                   return yield* new ProviderAdapter.ProviderAdapterProtocolError({
                     driver: CLAUDE_PROVIDER,
