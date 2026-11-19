@@ -276,7 +276,7 @@ The first backend slice implements lazy same-provider fork resolution:
 - The first dispatch on the fork resolves the pending transfer. For Codex-to-Codex forks with strong native refs and `thread/fork` support, the orchestrator uses the provider-native fork path and records `resolved_native` then `consumed`.
 - Cross-provider or otherwise non-native fork transfers materialize a portable `ContextHandoff`
   lazily on the target thread's first dispatch.
-- Active source runs are rejected for explicit run/checkpoint forks; `latest_stable` resolves to the latest completed checkpointed run.
+- Active source runs are rejected for explicit run/checkpoint forks; `latest_stable` resolves to the newest finished run (completed, waiting, failed, interrupted, or cancelled), so a thread can be forked while its next turn runs. Only completed or waiting sources fork natively; the rest use a portable handoff.
 
 This keeps the runtime aligned with the architecture while making portable context explicit and
 auditable through `ContextTransfer` and `ContextHandoff` records.

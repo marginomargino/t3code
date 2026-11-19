@@ -21,6 +21,8 @@ import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.sn
 import {
   buildThreadActionMenuItems,
   threadActionRequiresOperate,
+  providerForksWhileRunning,
+  threadHasRun,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
 import { titleRegenerationToast } from "../components/threadTitleRegenerationToast";
@@ -37,7 +39,7 @@ import {
   readThreadShell,
   useProjects,
 } from "../state/entities";
-import { usePrimaryEnvironmentId } from "../state/environments";
+import { useEnvironmentProviders, usePrimaryEnvironmentId } from "../state/environments";
 import { readLocalApi } from "../localApi";
 import { configuredHostedAppUrl } from "../hostedPairing";
 import {
@@ -48,6 +50,7 @@ import {
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
 import { useCopyToClipboard } from "./useCopyToClipboard";
+import { useForkThread } from "./useForkThread";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
 import { canTurnThreadIntoProject, useThreadActions } from "./useThreadActions";
@@ -96,6 +99,7 @@ export function useThreadActionMenu(input: {
     reportFailure: false,
   });
   const handleNewThread = useNewThreadHandler();
+  const forkThread = useForkThread();
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
@@ -114,6 +118,7 @@ export function useThreadActionMenu(input: {
     onError: (error) => failureToast(m(msg("Failed to copy thread ID")), error),
   });
 
+  const providersByEnvironment = useEnvironmentProviders();
   const openMenu = (position: { x: number; y: number }) => {
     if (threadRef === null) return;
     void (async () => {
@@ -151,6 +156,11 @@ export function useThreadActionMenu(input: {
         canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
         isRegeneratingTitle,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
+        hasRun: threadHasRun(thread),
+        forksWhileRunning: providerForksWhileRunning(
+          providersByEnvironment.get(threadRef.environmentId),
+          thread.providerInstanceId,
+        ),
         supports,
         snoozePresets,
         canShareWithGuest,
@@ -257,6 +267,15 @@ export function useThreadActionMenu(input: {
         case "rename":
           onStartRename();
           return;
+        case "fork": {
+          const error = await forkThread({
+            environmentId: threadRef.environmentId,
+            sourceThreadId: thread.id,
+            sourceTitle: thread.title,
+          });
+          if (error !== null) failureToast("Failed to fork thread", new Error(error));
+          return;
+        }
         case "regenerate-title": {
           if (isRegeneratingTitle) return;
           const toast = titleRegenerationToast([

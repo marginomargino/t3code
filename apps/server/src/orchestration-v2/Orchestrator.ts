@@ -1251,12 +1251,13 @@ function queuedRunCancellationEvents(
   return events;
 }
 
+// The newest finished turn, so a thread can be forked while its next turn runs or after a stop.
 function latestStableRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
 ): OrchestrationV2Run | null {
   return (
     projection.runs
-      .filter((run) => run.status === "completed" && run.checkpointId !== null)
+      .filter((run) => isForkableSourceRunStatus(run.status))
       .toSorted((left, right) => right.ordinal - left.ordinal)[0] ?? null
   );
 }
@@ -5901,7 +5902,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,
         commandType: command.type,
-        cause: `No stable source run was found for fork source ${command.sourcePoint.type}.`,
+        cause:
+          command.sourcePoint.type === "latest_stable"
+            ? "This thread has no finished turn to fork yet. Try again once its first turn ends."
+            : `No source run was found for fork source ${command.sourcePoint.type}.`,
       });
     }
     if (sourceRun !== null && !isForkableSourceRunStatus(sourceRun.status)) {
@@ -6127,6 +6131,32 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       providerInstanceId: sourceRun.providerInstanceId,
       occurredAt: now,
       payload: transfer,
+    });
+    if (transfer.error !== null) return;
+    yield* emitEvent({
+      type: "turn-item.updated",
+      threadId: command.targetThreadId,
+      providerInstanceId: sourceRun.providerInstanceId,
+      occurredAt: now,
+      payload: {
+        id: TurnItemId.make(`turn-item:merge-back:${transferId}`),
+        threadId: command.targetThreadId,
+        runId: null,
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal: yield* nextTurnItemOrdinal({ thread: targetProjection.thread }),
+        status: "completed",
+        title: "Fork merged back",
+        startedAt: now,
+        completedAt: now,
+        updatedAt: now,
+        type: "merge_back",
+        sourceThreadId: command.sourceThreadId,
+        sourceThreadTitle: sourceProjection.thread.title,
+      },
     });
   });
 
@@ -9105,6 +9135,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                 .map((run) => run.id),
             ),
           );
+    const mergeBackFinalReply = mergeBackDeltaItems.findLast(
+      (item) => item.type === "assistant_message" && item.runId === mergeBackSourceRun?.id,
+    );
     const mergeBackHandoff =
       pendingMergeBackTransfer === undefined ||
       mergeBackSourceProjection === null ||
@@ -9121,11 +9154,12 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               toProviderThreadId: providerThread.id,
               fromProviderInstanceId: mergeBackSourceRun.providerInstanceId,
               toProviderInstanceId: modelSelection.instanceId,
+              sourceThreadTitle: mergeBackSourceProjection.thread.title,
+              ...(mergeBackFinalReply === undefined ? {} : { finalReply: mergeBackFinalReply }),
               coveredRunOrdinals: visibleDeltaRunOrdinals(
                 mergeBackSourceProjection,
                 mergeBackDeltaItems,
               ),
-              deltaItems: mergeBackDeltaItems,
               createdAt: now,
             })
             .pipe(

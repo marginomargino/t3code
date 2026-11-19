@@ -610,6 +610,7 @@ function itemIcon(item: OrchestrationV2TurnItem): ThreadFeedActivity["icon"] {
     case "compaction":
     case "handoff":
     case "fork":
+    case "merge_back":
     case "thread_created":
       return "zap";
     case "secret_request":
@@ -684,6 +685,8 @@ function itemSummary(
       return resolve(msg("Context handed off"));
     case "fork":
       return resolve(msg("Thread forked"));
+    case "merge_back":
+      return resolve(msg("Fork merged back"));
     case "thread_created":
       return resolve(msg("Thread created"));
     case "secret_request":
@@ -755,6 +758,8 @@ function itemPreview(item: OrchestrationV2TurnItem, resolve: MessageResolver): s
     case "fork":
     case "thread_created":
       return item.targetThreadId;
+    case "merge_back":
+      return item.sourceThreadTitle;
     case "secret_request":
     case "link_request":
       return item.reason || null;

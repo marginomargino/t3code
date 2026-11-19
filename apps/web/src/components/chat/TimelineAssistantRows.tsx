@@ -9,6 +9,7 @@ import ChatMarkdown from "../ChatMarkdown";
 import { GitForkIcon, ReplyIcon } from "lucide-react";
 import { captureAssistantMessageOpening } from "~/lib/assistantTextSelection";
 import { responseContextRecord } from "~/lib/composerContextRecords";
+import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 import { Button } from "../ui/button";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";
@@ -195,6 +196,42 @@ function AssistantForkButton({
   );
 }
 
+function AssistantFinalizeForkButton({ runId }: { readonly runId: RunId | null }) {
+  const ctx = use(TimelineRowCtx);
+  const activity = use(TimelineRowActivityCtx);
+  const [busy, setBusy] = useState(false);
+  const gt = useGT();
+  const finalizeFork = ctx.finalizeFork;
+  if (finalizeFork === null || runId !== finalizeFork.runId) return null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            disabled={busy || activity.isWorking}
+            onClick={() => {
+              setBusy(true);
+              void finalizeFork.onFinalize().finally(() => setBusy(false));
+            }}
+            aria-label={gt("Finalize fork")}
+          />
+        }
+      >
+        <PullRequestGlyph.merged className={cn("size-3", busy && "animate-pulse")} />
+      </TooltipTrigger>
+      <TooltipPopup side="top">
+        <T>
+          Finalize fork: the agent writes a recap for the parent thread, then this fork is settled
+        </T>
+      </TooltipPopup>
+    </Tooltip>
+  );
+}
+
 export function AssistantMetaTimelineRow({
   row,
 }: {
@@ -255,6 +292,9 @@ function AssistantMessageMeta({
       ) : null}
       {!message.streaming && projectedItem ? (
         <AssistantReplyButton message={message} itemId={projectedItem.sourceItemId} />
+      ) : null}
+      {projectedItem?.item.type === "assistant_message" ? (
+        <AssistantFinalizeForkButton runId={projectedItem.item.runId} />
       ) : null}
       {!message.streaming && (
         <Tooltip>

@@ -61,7 +61,10 @@ vi.mock("../state/entities", () => ({
   }),
   useProjects: () => [{ id: "project", environmentId: "secondary" }],
 }));
-vi.mock("../state/environments", () => ({ usePrimaryEnvironmentId: () => "primary" }));
+vi.mock("../state/environments", () => ({
+  useEnvironmentProviders: () => new Map(),
+  usePrimaryEnvironmentId: () => "primary",
+}));
 vi.mock("../state/threads", () => ({ threadEnvironment: { updateMetadata: "metadata" } }));
 vi.mock("../state/use-atom-command", () => ({
   useAtomCommand: () => async () => {
@@ -106,6 +109,12 @@ vi.mock("../components/Sidebar.snooze", () => ({
 }));
 vi.mock("./useCopyToClipboard", () => ({
   useCopyToClipboard: () => ({ copyToClipboard: () => recordEffect("copy") }),
+}));
+vi.mock("./useForkThread", () => ({
+  useForkThread: () => async () => {
+    recordEffect("fork");
+    return null;
+  },
 }));
 vi.mock("./useHandleNewThread", () => ({
   useNewThreadHandler: () => async () => recordEffect("draft"),
@@ -166,7 +175,7 @@ beforeEach(() => {
 });
 
 describe("thread menu permissions", () => {
-  it.each(["rename", "regenerate-title", "delete", "pin", "settle", "archive"] as const)(
+  it.each(["rename", "regenerate-title", "delete", "pin", "settle", "archive", "fork"] as const)(
     "%s rechecks after the native menu closes",
     async (action) => {
       state.granted.add("secondary");
