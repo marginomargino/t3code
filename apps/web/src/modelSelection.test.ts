@@ -520,6 +520,7 @@ describe("instance-scoped model selection", () => {
       model: state.selectedModel,
       models: providers[0]!.models,
       modelOptions: state.modelOptions?.[instanceId],
+      planModeEnabled: false,
     });
 
     expect(state.selectedModel).toBe("gpt-5.6-sol");
@@ -548,6 +549,7 @@ describe("instance-scoped model selection", () => {
       model: state.selectedModel,
       models: providers[0]!.models,
       modelOptions: state.modelOptions?.[instanceId],
+      planModeEnabled: false,
     });
 
     expect(
@@ -751,6 +753,7 @@ describe("instance-scoped model selection", () => {
       model: state.selectedModel,
       models: providers[0]!.models,
       modelOptions: state.modelOptions?.[instanceId],
+      planModeEnabled: false,
     });
 
     expect(
@@ -805,6 +808,7 @@ describe("instance-scoped model selection", () => {
         model: state.selectedModel,
         models: providers[0]!.models,
         modelOptions: state.modelOptions?.[instanceId],
+        planModeEnabled: false,
       });
       return createModelSelection(
         instanceId,
@@ -861,6 +865,7 @@ describe("instance-scoped model selection", () => {
       model: state.selectedModel,
       models: providers[1]!.models,
       modelOptions: state.modelOptions?.[instanceId],
+      planModeEnabled: false,
     });
 
     expect(
@@ -1113,6 +1118,7 @@ describe("resolveAppModelSelectionState with the opencode plan agent", () => {
   };
   const settings: UnifiedSettings = {
     ...DEFAULT_UNIFIED_SETTINGS,
+    planModeEnabled: false,
     textGenerationModelSelection: createModelSelection(instanceId, model, [
       { id: "agent", value: "plan" },
     ]),
@@ -1181,6 +1187,7 @@ describe("default model settings and new-thread composer parity", () => {
           model,
           models,
           modelOptions,
+          planModeEnabled: settings.planModeEnabled,
         });
       const composerTraits = traits(composer.selectedModel, composer.modelOptions?.[instanceId]);
 
@@ -1280,6 +1287,7 @@ describe("composer fallback to another instance of the same driver", () => {
       model: state.selectedModel,
       models: selection.selectedProviderEntry!.models,
       modelOptions: state.modelOptions?.[selectedInstanceId],
+      planModeEnabled: false,
     });
     return { selectedInstanceId, state, traits };
   }
