@@ -1071,6 +1071,56 @@ export function summarizeT3ToolCalls(
           );
       break;
     }
+    case "terminal-run": {
+      const count = countEntities(entityIds("terminalId"));
+      label = done
+        ? resolve(
+            msg(
+              "{count, plural, one {Started {count} terminal command} other {Started {count} terminal commands}}",
+              { count },
+            ),
+          )
+        : resolve(
+            msg(
+              "{count, plural, one {Tried to start {count} terminal command} other {Tried to start {count} terminal commands}}",
+              { count },
+            ),
+          );
+      break;
+    }
+    case "terminal-read": {
+      const count = countEntities(entityIds("terminalId"));
+      label = done
+        ? resolve(
+            msg("{count, plural, one {Read {count} terminal} other {Read {count} terminals}}", {
+              count,
+            }),
+          )
+        : resolve(
+            msg(
+              "{count, plural, one {Tried to read {count} terminal} other {Tried to read {count} terminals}}",
+              { count },
+            ),
+          );
+      break;
+    }
+    case "terminal-stop": {
+      const count = countEntities(entityIds("terminalId"));
+      label = done
+        ? resolve(
+            msg(
+              "{count, plural, one {Stopped {count} terminal command} other {Stopped {count} terminal commands}}",
+              { count },
+            ),
+          )
+        : resolve(
+            msg(
+              "{count, plural, one {Tried to stop {count} terminal command} other {Tried to stop {count} terminal commands}}",
+              { count },
+            ),
+          );
+      break;
+    }
     case "project-list": {
       const count = selected.length;
       label = done
