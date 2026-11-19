@@ -52,6 +52,7 @@ import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useForkThread } from "./useForkThread";
 import { useNewThreadHandler } from "./useHandleNewThread";
+import { useRestartAgentSession } from "./useRestartAgentSession";
 import { useClientSettings } from "./useSettings";
 import { canTurnThreadIntoProject, useThreadActions } from "./useThreadActions";
 
@@ -100,6 +101,7 @@ export function useThreadActionMenu(input: {
   });
   const handleNewThread = useNewThreadHandler();
   const forkThread = useForkThread();
+  const restartAgentSession = useRestartAgentSession();
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
@@ -289,6 +291,13 @@ export function useThreadActionMenu(input: {
         }
         case "mark-unread":
           markThreadUnread(threadRef);
+          return;
+        case "restart-session":
+          try {
+            await restartAgentSession(threadRef);
+          } catch (error) {
+            failureToast("Failed to restart agent session", error);
+          }
           return;
         case "share-guest":
           openGuestShareDialog(threadRef);
