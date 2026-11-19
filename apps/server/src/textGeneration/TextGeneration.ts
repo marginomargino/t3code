@@ -47,7 +47,8 @@ type TextGenerationOp =
   | "generateBranchName"
   | "generateThreadTitle"
   | "generateReviewGuide"
-  | "generateTranscriptionPostProcessing";
+  | "generateTranscriptionPostProcessing"
+  | "findThreads";
 
 const resolveInstance = (
   registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
@@ -224,6 +225,11 @@ export const make = Effect.gen(function* () {
               modelSelection,
             });
           }),
+      );
+    }),
+    findThreads: Effect.fn("TextGeneration.findThreads")(function (input) {
+      return resolveInstance(registry, "findThreads", input.modelSelection.instanceId).pipe(
+        Effect.flatMap((textGeneration) => textGeneration.findThreads(input)),
       );
     }),
   });
