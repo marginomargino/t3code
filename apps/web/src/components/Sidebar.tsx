@@ -3366,6 +3366,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           ) : null}
                           <ComboboxCollection>
                             {(item: SidebarScopeItem) => {
+                              if (item.kind === "add-project") {
+                                return (
+                                  <ComboboxItem key={item.kind} hideIndicator value={item}>
+                                    <FolderPlusIcon className="size-4 shrink-0" />
+                                    <span className="min-w-0 truncate text-sm">{item.label}</span>
+                                    {/* Keeps "Add project" as tall as the project rows. */}
+                                    <span className="ml-auto size-7 shrink-0 sm:size-6" />
+                                  </ComboboxItem>
+                                );
+                              }
                               const project =
                                 item.kind === "project" && item.value !== null
                                   ? (projectGroupByScopeKey.get(item.value) ?? null)
