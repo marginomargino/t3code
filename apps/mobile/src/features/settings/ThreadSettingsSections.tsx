@@ -417,7 +417,7 @@ function MachineBetaSection({
 }
 
 function LegacySettingsSection() {
-  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const savePreferences = useAtomCommand(saveMobilePreferences);
   const preferences = useAtomValue(mobilePreferencesAtom);
   const planModeEnabled =
     AsyncResult.isSuccess(preferences) && preferences.value.planModeEnabled === true;
@@ -430,7 +430,7 @@ function LegacySettingsSection() {
           icon="hammer"
           label={gt("Plan Mode")}
           value={planModeEnabled}
-          onValueChange={(value) => savePreferences({ planModeEnabled: value })}
+          onValueChange={(value) => void savePreferences({ planModeEnabled: value })}
         />
       </SettingsSection>
       <Text className="px-2 text-sm text-foreground-muted">
