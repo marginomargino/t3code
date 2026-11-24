@@ -3233,7 +3233,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "on the computer that opened this page"]
+      "c": [
+        " ",
+        "on the computer that opened this page"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3245,7 +3248,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· whoever runs it gets this access"]
+      "c": [
+        " ",
+        "· whoever runs it gets this access"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Only approve a sign-in you just started.",
@@ -13044,5 +13050,9 @@
   "717c1c47a852a1a5": "Pause narration",
   "0eceb5780908eb6c": "Read aloud",
   "3ee98da81538c6de": "Could not play narration.",
-  "95435f0b59cb2193": "Audio preview"
+  "95435f0b59cb2193": "Audio preview",
+  "371200d2e3b7c5f8": "Pin message",
+  "77522f77e907e053": "Unpin message",
+  "1d86d90cc94a35ba": "Pinned message",
+  "2daf053e9e3068c5": "Jump to message"
 }

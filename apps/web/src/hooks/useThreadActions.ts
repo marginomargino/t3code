@@ -51,6 +51,7 @@ import {
 } from "../state/entities";
 import { useUiStateStore } from "../uiStateStore";
 import { useDiffPanelStore } from "../diffPanelStore";
+import { usePinnedMessageStore } from "../pinnedMessageStore";
 import { usePreviewMiniPlayerStore } from "../previewMiniPlayerStore";
 import { clearThreadPreviewState } from "../previewStateStore";
 import { useRightPanelStore } from "../rightPanelStore";
@@ -270,6 +271,7 @@ function clearDeletedThreadPanelState(ref: ScopedThreadRef) {
   clearThreadPreviewState(ref);
   useRightPanelStore.getState().removeThread(ref);
   useDiffPanelStore.getState().removeThread(ref);
+  usePinnedMessageStore.getState().removeThread(ref);
   usePreviewMiniPlayerStore.getState().removeThread(ref);
 }
 

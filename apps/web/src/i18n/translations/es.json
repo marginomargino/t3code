@@ -3233,7 +3233,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "en el ordenador que abrió esta página"]
+      "c": [
+        " ",
+        "en el ordenador que abrió esta página"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3245,7 +3248,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· quien lo ejecute obtiene este acceso"]
+      "c": [
+        " ",
+        "· quien lo ejecute obtiene este acceso"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Aprueba solo un inicio de sesión que acabes de iniciar.",
@@ -13031,5 +13037,9 @@
   "717c1c47a852a1a5": "Pausar narración",
   "0eceb5780908eb6c": "Leer en voz alta",
   "3ee98da81538c6de": "No se pudo reproducir la narración.",
-  "95435f0b59cb2193": "Vista previa de audio"
+  "95435f0b59cb2193": "Vista previa de audio",
+  "371200d2e3b7c5f8": "Fijar mensaje",
+  "77522f77e907e053": "Desfijar mensaje",
+  "1d86d90cc94a35ba": "Mensaje fijado",
+  "2daf053e9e3068c5": "Ir al mensaje"
 }
