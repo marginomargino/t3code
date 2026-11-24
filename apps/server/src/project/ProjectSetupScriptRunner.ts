@@ -370,7 +370,7 @@ export const makeTerminalCommandStarter = Effect.gen(function* () {
 
     // Return once the terminal exists so callers can show it while a startup prompt waits.
     // PowerShell and cmd have no line-editor signal.
-    return yield* (
+    const writer = yield* (
       completionShell === "powershell" || completionShell === null
         ? Effect.succeed("ready" as const)
         : readiness.wait
@@ -398,6 +398,8 @@ export const makeTerminalCommandStarter = Effect.gen(function* () {
       Effect.ensuring(Effect.sync(() => readiness.unsubscribe())),
       Effect.forkIn(serviceScope),
     );
+    // A writer interrupted before it starts skips its ensuring, so callers can unsubscribe directly.
+    return { writer, unsubscribe: () => readiness.unsubscribe() };
   });
 
   return { start };
@@ -640,7 +642,7 @@ export const make = Effect.gen(function* () {
             onOutputLine: observe.onOutputLine,
           })
         : undefined;
-    const commandWriter = yield* startInTerminal({
+    const started = yield* startInTerminal({
       threadId: input.threadId,
       terminalId,
       stopOnSettle: script.stopOnSettle ?? false,
@@ -686,7 +688,8 @@ export const make = Effect.gen(function* () {
 
     const completion = observed?.completion.pipe(
       Effect.onInterrupt(() =>
-        Fiber.interrupt(commandWriter).pipe(
+        Fiber.interrupt(started.writer).pipe(
+          Effect.andThen(Effect.sync(() => started.unsubscribe())),
           Effect.andThen(terminalManager.close({ threadId: input.threadId, terminalId })),
           Effect.ignore,
         ),
