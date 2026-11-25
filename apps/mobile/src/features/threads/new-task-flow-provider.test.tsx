@@ -223,6 +223,7 @@ function setup() {
     // Mirrors the draft screen applying its route project on mount, before the provider's effects run.
     useEffect(() => {
       if (props.pickOnMount) value.setProject(props.pickOnMount);
+      // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Runs once on mount, like the draft screen it mirrors.
     }, []);
     return null;
   }
