@@ -197,14 +197,16 @@ export const make = Effect.gen(function* () {
     function* (scope, input) {
       const session = yield* readAgentSession(scope, input.terminalId);
       if (Option.isNone(session)) return { terminalId: input.terminalId, stopped: false };
-      yield* terminals
-        // A rerun under this name must not show the stopped run's output.
-        .close({
-          threadId: scope.thread.threadId,
-          terminalId: input.terminalId,
-          deleteHistory: true,
-        })
-        .pipe(Effect.mapError(unavailable(`Terminal \`${input.terminalId}\` could not close.`)));
+      yield* (
+        terminals
+          // A rerun under this name must not show the stopped run's output.
+          .close({
+            threadId: scope.thread.threadId,
+            terminalId: input.terminalId,
+            deleteHistory: true,
+          })
+          .pipe(Effect.mapError(unavailable(`Terminal \`${input.terminalId}\` could not close.`)))
+      );
       return { terminalId: input.terminalId, stopped: true };
     },
   );
