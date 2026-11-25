@@ -255,17 +255,19 @@ it("does not index the hidden marker of an alert written with CR-only line endin
   expect(assistantSegments("> [!NOTE]\r> hi")).toEqual(["hi"]);
 });
 
-it("keeps insight line breaks for backticked openers on their own line, not in prose", () => {
+it("keeps line breaks after backticked insight openers, in prose too", () => {
   expect(assistantSegments("`★ Insight ─────`\nfirst line\nsecond line\n`─────`")).toEqual([
     "first line",
     " second line",
   ]);
   expect(assistantSegments("`★ Insight ─────` opens a callout.\nfirst line\nsecond line")).toEqual([
-    "★ Insight ───── opens a callout. first line second line",
+    "★ Insight ───── opens a callout.",
+    " first line",
+    " second line",
   ]);
   expect(
     assistantSegments("`★ Insight ─────`\u2028opens a callout.\nfirst line\nsecond line"),
-  ).toEqual(["★ Insight ─────\u2028opens a callout. first line second line"]);
+  ).toEqual(["★ Insight ─────\u2028opens a callout.", " first line", " second line"]);
 });
 
 it("indexes image destinations rendered as file chips", () => {
