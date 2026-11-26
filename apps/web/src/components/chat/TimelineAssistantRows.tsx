@@ -184,30 +184,28 @@ function AssistantFinalizeForkButton({ runId }: { readonly runId: RunId | null }
   if (finalizeFork === null || runId !== finalizeFork.runId) return null;
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            size="xs"
-            variant="ghost"
-            disabled={busy || activity.isWorking}
-            onClick={() => {
-              setBusy(true);
-              void finalizeFork.onFinalize().finally(() => setBusy(false));
-            }}
-            aria-label={gt("Finalize fork")}
-          />
-        }
-      >
-        <PullRequestGlyph.merged className={cn("size-3", busy && "animate-pulse")} />
-      </TooltipTrigger>
-      <TooltipPopup side="top">
+    <SharedTooltipTrigger
+      render={
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={busy || activity.isWorking}
+          onClick={() => {
+            setBusy(true);
+            void finalizeFork.onFinalize().finally(() => setBusy(false));
+          }}
+          aria-label={gt("Finalize fork")}
+        />
+      }
+      label={
         <T>
           Finalize fork: the agent writes a recap for the parent thread, then this fork is settled
         </T>
-      </TooltipPopup>
-    </Tooltip>
+      }
+    >
+      <PullRequestGlyph.merged className={cn("size-3", busy && "animate-pulse")} />
+    </SharedTooltipTrigger>
   );
 }
 
