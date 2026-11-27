@@ -15,6 +15,7 @@ import { HtmlRenderFrame } from "./HtmlRenderFrame";
 import { McpAppFrame } from "./McpAppFrame";
 import { readResponseSubagents, useAssistantMessageText } from "../../state/entities";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { MessagePinButton } from "./MessagePinButton";
 import { AssistantCitationSource } from "./AssistantCitationSource";
 import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
 import { cn } from "~/lib/utils";
@@ -36,6 +37,16 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
   const text = liveText ?? row.message.text;
   const messageText =
     text || (row.message.streaming || row.suppressEmptyResponse ? "" : gt("(empty response)"));
+
+  const pinButton =
+    !row.message.streaming && ctx.threadRef ? (
+      <MessagePinButton
+        threadRef={ctx.threadRef}
+        messageId={row.message.id}
+        text={text}
+        role="assistant"
+      />
+    ) : null;
 
   return (
     <>
@@ -82,7 +93,18 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             message={row.message}
             showCopyButton={row.showAssistantCopyButton}
             copyStreaming={row.assistantCopyStreaming}
+            pinButton={pinButton}
           />
+        ) : pinButton ? (
+          // Floats over the row so intermediate messages keep their compact spacing.
+          <div
+            className={cn(
+              "absolute end-1 -bottom-2 z-10 flex rounded-md bg-background",
+              ASSISTANT_ACTIONS_REVEAL_CLASS_NAME,
+            )}
+          >
+            {pinButton}
+          </div>
         ) : null}
       </div>
     </>
@@ -227,6 +249,9 @@ export function AssistantMetaTimelineRow({
   );
 }
 
+const ASSISTANT_ACTIONS_REVEAL_CLASS_NAME =
+  "opacity-0 transition-opacity duration-200 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover/assistant:opacity-100";
+
 function AssistantMessageMeta({
   className,
   projectedItem,
@@ -234,6 +259,7 @@ function AssistantMessageMeta({
   showCopyButton,
   copyStreaming,
   alwaysVisible = false,
+  pinButton,
 }: {
   className?: string;
   projectedItem?: Extract<TimelineRow, { kind: "message" }>["projectedItem"];
@@ -241,6 +267,7 @@ function AssistantMessageMeta({
   showCopyButton: boolean;
   copyStreaming: boolean;
   alwaysVisible?: boolean;
+  pinButton?: React.ReactNode;
 }) {
   const ctx = use(TimelineRowCtx);
   const m = useMessages();
@@ -248,10 +275,8 @@ function AssistantMessageMeta({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 text-xs tabular-nums transition-opacity duration-200",
-        alwaysVisible
-          ? "opacity-100"
-          : "opacity-0 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover/assistant:opacity-100",
+        "flex items-center gap-2 text-xs tabular-nums",
+        alwaysVisible ? "opacity-100" : ASSISTANT_ACTIONS_REVEAL_CLASS_NAME,
         className,
       )}
     >
@@ -263,6 +288,7 @@ function AssistantMessageMeta({
         showCopyButton={showCopyButton}
         streaming={copyStreaming}
       />
+      {pinButton}
       {projectedItem?.item.type === "assistant_message" ? (
         <AssistantForkButton projectedItem={projectedItem} />
       ) : null}

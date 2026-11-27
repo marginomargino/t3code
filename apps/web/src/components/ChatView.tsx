@@ -71,6 +71,7 @@ import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
 import { useWorktreeSetup } from "./chat/useWorktreeSetup";
 import { useChatShortcuts } from "./chat/useChatShortcuts";
 import { ChatBannerLane } from "./chat/ChatBannerLane";
+import { usePinnedMessageStore } from "../pinnedMessageStore";
 import * as Schema from "effect/Schema";
 import {
   AuthOrchestrationOperateScope,
@@ -323,7 +324,7 @@ import {
 } from "./chat/ChatOverlayHosts";
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import { useCitedHistory } from "./chat/citationProcedure";
-import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
+import type { MessagesTimelineHistoryControls, PinnedMessageJump } from "./chat/MessagesTimeline";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
 import { NativeChildWorkDialog } from "./chat/NativeChildWorkDialog";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
@@ -1743,6 +1744,16 @@ export default function ChatView(props: ChatViewProps) {
   const timelineEmpty = timelineEntries.length === 0 && !hasStreamedTimelineRows;
   const displayedTimelineKey = activeThreadKey ?? routeThreadKey;
   const displayedThreadRef = parseScopedThreadKey(displayedTimelineKey);
+  const pinnedMessage = usePinnedMessageStore((store) => store.byThreadKey[displayedTimelineKey]);
+  const [pinnedMessageJump, setPinnedMessageJump] = useState<PinnedMessageJump | null>(null);
+  const jumpToPinnedMessage =
+    pinnedMessageJump?.threadKey === displayedTimelineKey &&
+    pinnedMessageJump.messageId === pinnedMessage?.messageId
+      ? pinnedMessageJump.jump
+      : undefined;
+  const unpinMessage = useStableCallback(() => {
+    if (displayedThreadRef) usePinnedMessageStore.getState().unpin(displayedThreadRef);
+  });
   const {
     worktreeSetup,
     isPreparingWorktree,
@@ -1906,7 +1917,8 @@ export default function ChatView(props: ChatViewProps) {
   )
     ? activeProviderStatus
     : null;
-  const hasTimelineTopBanner = Boolean(timelineThreadError) || visibleProviderStatus !== null;
+  const hasTimelineTopBanner =
+    Boolean(timelineThreadError) || visibleProviderStatus !== null || pinnedMessage !== undefined;
   const activeProjectCwd = activeProject?.workspaceRoot ?? null;
   const activeThreadWorktreePath = activeThread?.worktreePath ?? null;
   const activeWorkspaceRoot = activeThreadWorktreePath ?? activeProjectCwd ?? undefined;
@@ -3731,6 +3743,19 @@ export default function ChatView(props: ChatViewProps) {
               threadErrorBannerKey={threadErrorBannerKey}
               setThreadError={setThreadError}
               setThreadErrorBannerDismissTick={setThreadErrorBannerDismissTick}
+              pinnedMessageTopInset={isThreadFindActive ? THREAD_FIND_BAR_RESERVED_HEIGHT : 0}
+              pinnedMessage={
+                pinnedMessage && displayedThreadRef
+                  ? {
+                      snapshot: pinnedMessage,
+                      threadRef: displayedThreadRef,
+                      markdownCwd: gitCwd ?? undefined,
+                      skills: timelineSkills,
+                      onJump: jumpToPinnedMessage,
+                      onUnpin: unpinMessage,
+                    }
+                  : null
+              }
             />
             <div
               {...conversationArea}
@@ -3751,6 +3776,8 @@ export default function ChatView(props: ChatViewProps) {
                   detailLoading={threadDetailLoading}
                   citationRequest={citationRequest}
                   citationHistory={citationHistory}
+                  pinnedMessageId={pinnedMessage?.messageId ?? null}
+                  pinnedMessageJumpRef={setPinnedMessageJump}
                   onCiteAssistantText={citeAssistantTextStable}
                   onReplyToResponse={replyToResponseStable}
                   {...(activeProject && !runsOutsideHostCheckout

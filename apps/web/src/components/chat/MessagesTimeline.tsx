@@ -43,11 +43,13 @@ import {
   use,
   useContext,
   useLayoutEffect,
+  useImperativeHandle,
   useEffect,
   useEffectEvent,
   useRef,
   useState,
   type ReactNode,
+  type Ref,
   type SyntheticEvent,
 } from "react";
 import {
@@ -232,7 +234,15 @@ export interface MessagesTimelineHistoryControls {
   readonly onLoadEarlier: (throughEntryId?: string) => void;
 }
 
+export interface PinnedMessageJump {
+  threadKey: string;
+  messageId: MessageId;
+  jump: () => void;
+}
+
 interface MessagesTimelineProps {
+  pinnedMessageId?: MessageId | null;
+  pinnedMessageJumpRef?: Ref<PinnedMessageJump | null>;
   pendingApprovals?: ReadonlyArray<PendingApproval>;
   heldApprovalRequestIds?: ReadonlySet<string> | undefined;
   respondingRequestIds?: TimelineRowSharedState["respondingRequestIds"];
@@ -363,6 +373,8 @@ export function MessagesTimeline(props: MessagesTimelineProps) {
 }
 
 const ConversationTimeline = memo(function ConversationTimeline({
+  pinnedMessageId = null,
+  pinnedMessageJumpRef,
   pendingApprovals = EMPTY_PENDING_APPROVALS,
   heldApprovalRequestIds,
   respondingRequestIds = EMPTY_RESPONDING_REQUEST_IDS,
@@ -822,6 +834,32 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const listOpenedOn = nextOpening.mounted ? nextOpening.identity : null;
   const viewportRef = useRef<TimelineViewport | null>(null);
   const navigateTimeline = () => viewportRef.current?.navigate({ releasesFollow: true });
+  const scrollToTimelineRow = (index: number, viewPosition?: number) => {
+    navigateTimeline();
+    void listRef.current?.scrollToIndex({
+      index,
+      animated: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      viewOffset: TIMELINE_MINIMAP_TARGET_OFFSET,
+      ...(viewPosition === undefined ? {} : { viewPosition }),
+    });
+  };
+  const pinnedMessageRowId =
+    pinnedMessageId === null
+      ? undefined
+      : rows.find((row) => row.kind === "message" && row.message.id === pinnedMessageId)?.id;
+  const jumpToPinnedMessage = useStableCallback(() => {
+    if (pinnedMessageRowId === undefined) return;
+    const index = listRef.current?.getState().indexByKey(pinnedMessageRowId);
+    if (index !== undefined) scrollToTimelineRow(index, 0);
+  });
+  useImperativeHandle<PinnedMessageJump | null, PinnedMessageJump | null>(
+    pinnedMessageJumpRef,
+    () =>
+      pinnedMessageRowId === undefined || pinnedMessageId === null
+        ? null
+        : { threadKey: listIdentityKey, messageId: pinnedMessageId, jump: jumpToPinnedMessage },
+    [jumpToPinnedMessage, listIdentityKey, pinnedMessageId, pinnedMessageRowId],
+  );
   const restoreReady = restoringThreadPosition && rows.length > 0;
   // Z: syncs LegendList's scroll position with which thread it shows. The list
   // is not keyed per thread and reports no "new data" event, and the restore
@@ -1558,14 +1596,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
               atEnd={minimapAtEnd}
               stripMap={minimapStripMap}
               onWheel={forwardMinimapWheel}
-              onSelect={(item) => {
-                navigateTimeline();
-                void listRef.current?.scrollToIndex({
-                  index: item.rowIndex,
-                  animated: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-                  viewOffset: TIMELINE_MINIMAP_TARGET_OFFSET,
-                });
-              }}
+              onSelect={(item) => scrollToTimelineRow(item.rowIndex)}
             />
           </TooltipScrollDismissArea>
         </TimelineRowActivityCtx>

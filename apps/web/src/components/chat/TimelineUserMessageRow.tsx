@@ -58,6 +58,7 @@ import {
 } from "./SnapShotAttachmentDetails";
 import { GuestMessageName, guestBubbleClassName } from "./guestMessageStyle";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { MessagePinButton } from "./MessagePinButton";
 import { promptLinkFor } from "../promptLinks/copyPromptLink";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { formatBytes } from "../../lib/formatBytes";
@@ -887,6 +888,14 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
             variant="ghost"
           />
         )}
+        {ctx.threadRef && (
+          <MessagePinButton
+            threadRef={ctx.threadRef}
+            messageId={row.message.id}
+            text={plainText}
+            role="user"
+          />
+        )}
         {promptLink !== null && (
           <MessageCopyButton
             text={promptLink}
@@ -1277,7 +1286,10 @@ const CollapsibleUserMessageBody = memo(function CollapsibleUserMessageBody(prop
   );
 });
 
-const USER_MESSAGE_MARKDOWN: MarkdownExtensions = { userMessage: true, leadingWhitespace: true };
+export const USER_MESSAGE_MARKDOWN: MarkdownExtensions = {
+  userMessage: true,
+  leadingWhitespace: true,
+};
 
 const UserMessageBody = memo(function UserMessageBody(props: {
   text: string;

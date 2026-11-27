@@ -1,3 +1,4 @@
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import type {
   EnvironmentId,
   OrchestrationV2ProviderFailureClass,
@@ -6,11 +7,13 @@ import type {
   ThreadId,
 } from "@t3tools/contracts";
 import type { Dispatch, SetStateAction } from "react";
+import { cn } from "../../lib/utils";
 import {
   dismissProviderStatusBannerForSession,
   ProviderStatusBanner,
 } from "./ProviderStatusBanner";
 import { dismissThreadErrorBannerForSession, ThreadErrorBanner } from "./ThreadErrorBanner";
+import { PinnedMessageBar, type PinnedMessageBarProps } from "./PinnedMessageBar";
 
 /**
  * The banners pinned above the timeline. The dismiss handlers are built here from plain
@@ -28,6 +31,8 @@ export function ChatBannerLane(props: {
   threadErrorBannerKey: string | null;
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;
   setThreadErrorBannerDismissTick: Dispatch<SetStateAction<number>>;
+  pinnedMessage: PinnedMessageBarProps | null;
+  pinnedMessageTopInset: number;
 }) {
   const {
     providerStatus,
@@ -42,7 +47,14 @@ export function ChatBannerLane(props: {
     setThreadErrorBannerDismissTick,
   } = props;
   return (
-    <div className="chat-banner-lane pointer-events-none absolute top-0 z-30 flex flex-col">
+    <div
+      className={cn(
+        "pointer-events-none z-30 flex flex-col",
+        props.pinnedMessage
+          ? "relative shrink-0 ms-(--chat-lane-inset-start) me-(--chat-lane-inset-end)"
+          : "chat-banner-lane absolute top-0",
+      )}
+    >
       <ProviderStatusBanner
         environmentId={props.environmentId}
         status={providerStatus}
@@ -59,6 +71,17 @@ export function ChatBannerLane(props: {
           setThreadErrorBannerDismissTick((tick) => tick + 1);
         }}
       />
+      {props.pinnedMessage ? (
+        <div
+          className="chat-content-lane px-3 pt-2"
+          style={{ marginTop: props.pinnedMessageTopInset }}
+        >
+          <PinnedMessageBar
+            key={`${scopedThreadKey(props.pinnedMessage.threadRef)}:${props.pinnedMessage.snapshot.messageId}`}
+            {...props.pinnedMessage}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

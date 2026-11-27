@@ -3234,7 +3234,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "auf dem Computer, der diese Seite geöffnet hat"]
+      "c": [
+        " ",
+        "auf dem Computer, der diese Seite geöffnet hat"
+      ]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3246,7 +3249,10 @@
     {
       "t": "span",
       "i": 2,
-      "c": [" ", "· wer es ausführt, erhält diesen Zugriff"]
+      "c": [
+        " ",
+        "· wer es ausführt, erhält diesen Zugriff"
+      ]
     }
   ],
   "c54cc9c75db9dc58": "Genehmige nur eine Anmeldung, die du gerade selbst gestartet hast.",
@@ -13036,5 +13042,9 @@
   "717c1c47a852a1a5": "Vorlesen pausieren",
   "0eceb5780908eb6c": "Vorlesen",
   "3ee98da81538c6de": "Die Vertonung konnte nicht abgespielt werden.",
-  "95435f0b59cb2193": "Audiovorschau"
+  "95435f0b59cb2193": "Audiovorschau",
+  "371200d2e3b7c5f8": "Nachricht anheften",
+  "77522f77e907e053": "Nachricht lösen",
+  "1d86d90cc94a35ba": "Angeheftete Nachricht",
+  "2daf053e9e3068c5": "Zur Nachricht springen"
 }
