@@ -225,6 +225,14 @@ export class TerminalManager extends Context.Service<
       viewerId?: string,
     ) => Effect.Effect<void, TerminalError>;
 
+    /** Reads a session without opening, attaching, or resizing it. */
+    readonly snapshot: (input: {
+      readonly threadId: string;
+      readonly terminalId: string;
+    }) => Effect.Effect<
+      Option.Option<TerminalSessionSnapshot & { readonly hasRunningSubprocess: boolean }>
+    >;
+
     readonly resize: (
       input: TerminalResizeInput,
       viewerId?: string,
@@ -4232,6 +4240,15 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     );
     yield* closeIdle(input);
   });
+  const readSnapshot: TerminalManager["Service"]["snapshot"] = (input) =>
+    getSession(input.threadId, input.terminalId).pipe(
+      Effect.map(
+        Option.map((session) => ({
+          ...snapshot(session),
+          hasRunningSubprocess: session.hasRunningSubprocess,
+        })),
+      ),
+    );
 
   const hasActiveSubprocess = Effect.fn("terminal.hasActiveSubprocess")(function* (input: {
     readonly threadId: string;
@@ -4264,6 +4281,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     observeStream,
     resyncStream,
     write,
+    snapshot: readSnapshot,
     resize,
     clear,
     close,

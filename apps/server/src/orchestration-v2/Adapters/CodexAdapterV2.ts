@@ -1769,6 +1769,8 @@ function codexThreadRuntimeParams(input: {
             [`mcp_servers.${CODEX_T3_MCP_SERVER}`]: {
               ...t3Server,
               disabled_tools: CODEX_DIRECT_ONLY_T3_TOOLS,
+              // Auto mode would otherwise remember one approval for every later command.
+              tools: { t3_terminal_run: { approval_mode: "prompt" } },
             },
             // Code Mode runs a blocking wait or delegate wait as a nested call, and the model
             // keeps polling it. A second, direct-only registration makes it a plain tool call.

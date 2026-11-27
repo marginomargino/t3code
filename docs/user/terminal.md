@@ -27,6 +27,15 @@ Each terminal retains up to **5,000 lines** and **8 MiB** of scrollback on the s
 
 On iOS/iPadOS, long-press the terminal to paste or choose **Select Text**.
 
+## Commands an agent starts
+
+An agent can start a long-running command, such as a dev server or a watcher,
+in its own terminal tab named `agent-<name>`. Press Cmd+J (Ctrl+J elsewhere) to
+watch it live; Ctrl+C stops it. The agent can read the tab's recent output and
+stop it. It works in full access, and in auto mode on Claude or Codex, where
+their auto review checks each command first. Plan mode never runs it. The
+command keeps running after the agent's turn ends.
+
 ## fish shell
 
 T3 Code launches `fish` with `no-query-term` to avoid startup delays, which overrides universal `fish_features`. To keep custom flags or re-enable `query-term`, export `fish_features` in the environment that launches T3 Code.
