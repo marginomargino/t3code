@@ -51,7 +51,15 @@ export function composerCommandKeyHandler(input: {
   readonly planModeUiEnabled: boolean;
   readonly isLiteralPendingAnswer: boolean;
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
+  /**
+   * Whether a recalled command comes back as one; see `useComposerShellMode`. Without it, history
+   * recalls every message as its text, as before shell commands.
+   */
+  readonly shellCommandsAvailable: boolean;
+  /** The composer runs its shell-aware code; see `useComposerShellMode`'s `active`. */
+  readonly shellModeActive: boolean;
   readonly promptHistoryEntries: ChatComposerProps["promptHistoryEntries"];
+  readonly withStoppedShellCommands: ChatComposerProps["withStoppedShellCommands"];
   readonly promptHistoryPositionRef: RefObject<{
     targetKey: string;
     position: ComposerPromptHistoryPosition;
@@ -69,6 +77,7 @@ export function composerCommandKeyHandler(input: {
   readonly setComposerDraftPrompt: (
     target: ChatComposerProps["composerDraftTarget"],
     prompt: string,
+    options?: { readonly shellMode?: boolean },
   ) => void;
   readonly setComposerDraftThreadContexts: (
     target: ChatComposerProps["composerDraftTarget"],
@@ -114,7 +123,10 @@ export function composerCommandKeyHandler(input: {
     planModeUiEnabled,
     isLiteralPendingAnswer,
     pendingUserInputs,
+    shellCommandsAvailable,
+    shellModeActive,
     promptHistoryEntries,
+    withStoppedShellCommands,
     promptHistoryPositionRef,
     composerDraftTarget,
     promptRef,
@@ -152,12 +164,24 @@ export function composerCommandKeyHandler(input: {
   const replacePromptFromHistory = (
     nextPrompt: string,
     mentions: ComposerPromptHistoryMentions,
+    recalledCommand: boolean,
   ) => {
     promptRef.current = nextPrompt;
-    setComposerDraftPrompt(composerDraftTarget, nextPrompt);
+    // A stopped command recalls as one even without shell commands, and the next step away from
+    // it must leave shell mode.
+    const shellAware = shellCommandsAvailable || shellModeActive || recalledCommand;
+    if (shellAware) {
+      setComposerDraftPrompt(composerDraftTarget, nextPrompt, { shellMode: recalledCommand });
+    } else {
+      setComposerDraftPrompt(composerDraftTarget, nextPrompt);
+    }
     setComposerDraftThreadContexts(composerDraftTarget, mentions.threadContexts);
     setComposerDraftEnvironmentContexts(composerDraftTarget, mentions.environmentContexts);
-    setComposerCursor(collapseExpandedComposerCursor(nextPrompt, nextPrompt.length));
+    setComposerCursor(
+      shellAware
+        ? collapseExpandedComposerCursor(nextPrompt, nextPrompt.length, recalledCommand)
+        : collapseExpandedComposerCursor(nextPrompt, nextPrompt.length),
+    );
     setComposerTrigger(null);
     setComposerHighlightedItemId(null);
   };
@@ -192,7 +216,12 @@ export function composerCommandKeyHandler(input: {
       direction,
       // Built on the keypress, not per render: the timeline changes on every streamed delta.
       entries: buildComposerPromptHistoryEntries(
-        promptHistoryEntries.flatMap((entry) => (entry.kind === "message" ? [entry.message] : [])),
+        withStoppedShellCommands(
+          promptHistoryEntries.flatMap((entry) =>
+            entry.kind === "message" ? [entry.message] : [],
+          ),
+        ),
+        { shellCommands: shellCommandsAvailable },
       ),
       position,
       currentPrompt: promptRef.current,
@@ -201,7 +230,7 @@ export function composerCommandKeyHandler(input: {
     promptHistoryPositionRef.current = step.position
       ? { targetKey: promptHistoryTargetKey, position: step.position }
       : null;
-    replacePromptFromHistory(step.prompt, step.mentions);
+    replacePromptFromHistory(step.prompt, step.mentions, step.shellMode);
     return true;
   };
 
