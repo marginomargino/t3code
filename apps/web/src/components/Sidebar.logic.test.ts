@@ -7,11 +7,14 @@ import { describe, expect, it } from "vite-plus/test";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import {
-  ADD_PROJECT_SCOPE_ITEM_VALUE,
   filterSidebarProjectScopeItems,
   shouldCreateNewThreadInCurrentProject,
   resolveScopedNewThreadProjectRef,
   deleteSelectedThreadEntries,
+  filterSidebarV2VisibleThreads,
+  olderSettledScopes,
+  projectGroupHasEnvironment,
+  resolveSidebarEnvironmentScopeId,
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
   orderItemsByPreferredIds,
@@ -1590,8 +1593,90 @@ describe("pendingSidebarRouteReveal", () => {
   });
 });
 
+describe("filterSidebarV2VisibleThreads scope", () => {
+  const thread = (environmentId: string, projectId: string) =>
+    makeThreadFixture({
+      id: ThreadId.make(`${environmentId}-${projectId}`),
+      environmentId: EnvironmentId.make(environmentId),
+      projectId: ProjectId.make(projectId),
+    });
+  const threads = [thread("env-a", "repo"), thread("env-b", "repo"), thread("env-b", "other")];
+  const visibleIds = (scope: Parameters<typeof filterSidebarV2VisibleThreads>[1]) =>
+    filterSidebarV2VisibleThreads(threads, scope, new Set()).map((candidate) => candidate.id);
+
+  it.each([
+    ["no scope", null, ["env-a-repo", "env-b-repo", "env-b-other"]],
+    [
+      "one environment",
+      { environmentId: "env-b", projectKeys: null },
+      ["env-b-repo", "env-b-other"],
+    ],
+    [
+      "a project group spanning environments",
+      { environmentId: null, projectKeys: new Set(["env-a:repo", "env-b:repo"]) },
+      ["env-a-repo", "env-b-repo"],
+    ],
+    [
+      "a project group within one environment",
+      { environmentId: "env-a", projectKeys: new Set(["env-a:repo", "env-b:repo"]) },
+      ["env-a-repo"],
+    ],
+  ])("lists threads for %s", (_label, scope, expected) => {
+    expect(visibleIds(scope)).toEqual(expected);
+  });
+});
+
+describe("sidebar environment scope helpers", () => {
+  const envA = EnvironmentId.make("env-a");
+  const envB = EnvironmentId.make("env-b");
+
+  it.each([
+    ["no stored scope", null, [envA, envB], null],
+    ["a known environment", "env-b", [envA, envB], envB],
+    ["an environment that is gone", "env-c", [envA, envB], null],
+    ["a single environment", "env-a", [envA], null],
+  ])(
+    "resolves the stored environment scope for %s",
+    (_label, storedId, environmentIds, expected) => {
+      expect(resolveSidebarEnvironmentScopeId(storedId, environmentIds)).toBe(expected);
+    },
+  );
+
+  it("tells whether a project group has a copy in an environment", () => {
+    const group = { memberProjectRefs: [{ environmentId: "env-a" }] };
+    expect(projectGroupHasEnvironment(group, "env-a")).toBe(true);
+    expect(projectGroupHasEnvironment(group, "env-b")).toBe(false);
+  });
+
+  it.each([
+    [
+      "no scope",
+      null,
+      [
+        { environmentId: envA, projectIds: null },
+        { environmentId: envB, projectIds: null },
+      ],
+    ],
+    [
+      "one environment",
+      { environmentId: "env-b", projectKeys: null },
+      [{ environmentId: envB, projectIds: null }],
+    ],
+    [
+      "a project group within one environment",
+      { environmentId: "env-a", projectKeys: new Set(["env-a:repo", "env-b:repo"]) },
+      [{ environmentId: envA, projectIds: ["repo"] }],
+    ],
+  ])("pages older settled threads for %s", (_label, scope, expected) => {
+    expect(olderSettledScopes([envA, envB], scope)).toEqual(expected);
+  });
+});
+
 describe("resolveSidebarRouteReveal", () => {
-  const scopedProjectKeys = new Set(["environment-test:project-scoped"]);
+  const scope = {
+    environmentId: null,
+    projectKeys: new Set(["environment-test:project-scoped"]),
+  };
   const hidden = makeThreadFixture({ projectId: ProjectId.make("project-other") });
   const hiddenKey = "environment-test:thread-test";
   const findThread = (key: string) => (key === hiddenKey ? hidden : undefined);
@@ -1603,11 +1688,39 @@ describe("resolveSidebarRouteReveal", () => {
         routeKey: hiddenKey,
         routeKeyInPlace: false,
         isSearching: false,
-        scopedProjectKeys,
+        scope,
         delegatedUnderParent: new Set(),
         findThread,
       }),
-    ).toEqual({ pendingKey: hiddenKey, widensScope: true });
+    ).toEqual({ pendingKey: hiddenKey, widensEnvironment: false, widensProject: true });
+  });
+
+  it("widens the scope for a newly opened thread the environment scope hides", () => {
+    expect(
+      resolveSidebarRouteReveal({
+        reveal: { observedKey: "environment-test:other", pendingKey: null },
+        routeKey: hiddenKey,
+        routeKeyInPlace: false,
+        isSearching: false,
+        scope: { environmentId: "environment-other", projectKeys: null },
+        delegatedUnderParent: new Set(),
+        findThread,
+      }),
+    ).toEqual({ pendingKey: hiddenKey, widensEnvironment: true, widensProject: false });
+  });
+
+  it("keeps the environment scope when only the project scope hides the thread", () => {
+    expect(
+      resolveSidebarRouteReveal({
+        reveal: { observedKey: "environment-test:other", pendingKey: null },
+        routeKey: hiddenKey,
+        routeKeyInPlace: false,
+        isSearching: false,
+        scope: { environmentId: "environment-test", projectKeys: scope.projectKeys },
+        delegatedUnderParent: new Set(),
+        findThread,
+      }),
+    ).toEqual({ pendingKey: hiddenKey, widensEnvironment: false, widensProject: true });
   });
 
   it("never widens for a thread whose reveal already completed", () => {
@@ -1618,11 +1731,11 @@ describe("resolveSidebarRouteReveal", () => {
         routeKey: hiddenKey,
         routeKeyInPlace: false,
         isSearching: false,
-        scopedProjectKeys,
+        scope,
         delegatedUnderParent: new Set(),
         findThread,
       }),
-    ).toEqual({ pendingKey: null, widensScope: false });
+    ).toEqual({ pendingKey: null, widensEnvironment: false, widensProject: false });
   });
 
   it("widens again for a thread reopened before the thread between them listed its row", () => {
@@ -1635,12 +1748,16 @@ describe("resolveSidebarRouteReveal", () => {
         routeKey,
         routeKeyInPlace: false,
         isSearching: false,
-        scopedProjectKeys,
+        scope,
         delegatedUnderParent: new Set(),
         findThread,
       });
     resolve("environment-test:unlisted");
-    expect(resolve(hiddenKey)).toEqual({ pendingKey: hiddenKey, widensScope: true });
+    expect(resolve(hiddenKey)).toEqual({
+      pendingKey: hiddenKey,
+      widensEnvironment: false,
+      widensProject: true,
+    });
   });
 
   it("holds a pending reveal without widening while searching", () => {
@@ -1650,11 +1767,11 @@ describe("resolveSidebarRouteReveal", () => {
         routeKey: hiddenKey,
         routeKeyInPlace: false,
         isSearching: true,
-        scopedProjectKeys,
+        scope,
         delegatedUnderParent: new Set(),
         findThread,
       }),
-    ).toEqual({ pendingKey: hiddenKey, widensScope: false });
+    ).toEqual({ pendingKey: hiddenKey, widensEnvironment: false, widensProject: false });
   });
 });
 
@@ -1841,18 +1958,18 @@ describe("resolveScopedNewThreadProjectRef", () => {
 describe("filterSidebarProjectScopeItems", () => {
   it("hides Add project and All projects while searching", () => {
     const items = [
-      { value: ADD_PROJECT_SCOPE_ITEM_VALUE, label: "Add project" },
-      { value: "all", label: "All projects" },
-      { value: "p1", label: "project" },
+      { kind: "add-project" as const, value: null, label: "Add project" },
+      { kind: "project" as const, value: null, label: "All projects" },
+      { kind: "project" as const, value: "p1", label: "project" },
     ];
     const filter = (query: string) =>
       filterSidebarProjectScopeItems({
         items,
         query,
         matches: (item, q) => item.label.includes(q),
-      }).map((item) => item.value);
+      }).map((item) => item.label);
 
-    expect(filter("")).toEqual([ADD_PROJECT_SCOPE_ITEM_VALUE, "all", "p1"]);
-    expect(filter("project")).toEqual(["p1"]);
+    expect(filter("")).toEqual(["Add project", "All projects", "project"]);
+    expect(filter("project")).toEqual(["project"]);
   });
 });
