@@ -1,5 +1,4 @@
 import type { ScopedThreadRef, ServerProviderSkill } from "@t3tools/contracts";
-import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/assistantInsights";
 import { useGT } from "gt-react";
 import { ArrowDownToLineIcon, ChevronDownIcon, ChevronUpIcon, PinIcon, XIcon } from "lucide-react";
 import { useState } from "react";
@@ -105,7 +104,7 @@ export function PinnedMessageBar({
               ? {}
               : { className: "user-message-markdown", extensions: USER_MESSAGE_MARKDOWN })}
             renderInsights={isAssistant}
-            lineBreaks={!isAssistant || shouldPreserveAssistantLineBreaks(snapshot.text)}
+            lineBreaks
             parseRawHtml={isAssistant}
             headingLevelOffset={MESSAGE_HEADING_LEVEL}
           />
