@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildThreadActionMenuItems, type ThreadActionMenuState } from "./threadActionMenu.logic";
+import { ProviderDriverKind, ProviderInstanceId } from "@t3tools/contracts";
+
+import {
+  buildThreadActionMenuItems,
+  providerForksWhileRunning,
+  type ThreadActionMenuState,
+} from "./threadActionMenu.logic";
 
 const baseState: ThreadActionMenuState = {
   canOperate: true,
@@ -15,6 +21,8 @@ const baseState: ThreadActionMenuState = {
   isRegeneratingTitle: false,
   isRunning: false,
   hasCompletedRun: true,
+  hasRun: true,
+  forksWhileRunning: false,
   supports: {
     settlement: true,
     autoSettleOptOut: true,
@@ -46,6 +54,7 @@ describe("buildThreadActionMenuItems", () => {
             "unsettle",
             "unsnooze",
             "rename",
+            "fork",
             "regenerate-title",
             "auto-settle",
             "archive",
@@ -56,6 +65,7 @@ describe("buildThreadActionMenuItems", () => {
             "settle",
             "snooze",
             "rename",
+            "fork",
             "regenerate-title",
             "auto-settle",
             "archive",
@@ -90,5 +100,41 @@ describe("buildThreadActionMenuItems", () => {
   it("disables only rename where no inline title editor exists", () => {
     const items = buildThreadActionMenuItems({ ...baseState, canRename: false });
     expect(items.filter((item) => item.disabled).map((item) => item.id)).toEqual(["rename"]);
+  });
+  it.each([
+    { hasRun: true, isRunning: false, forksWhileRunning: false, disabled: false },
+    { hasRun: false, isRunning: false, forksWhileRunning: false, disabled: true },
+    { hasRun: true, isRunning: true, forksWhileRunning: false, disabled: true },
+    { hasRun: false, isRunning: true, forksWhileRunning: false, disabled: true },
+    { hasRun: true, isRunning: true, forksWhileRunning: true, disabled: false },
+    { hasRun: false, isRunning: true, forksWhileRunning: true, disabled: true },
+  ])(
+    "fork is disabled=$disabled when has run=$hasRun, running=$isRunning, forks while running=$forksWhileRunning",
+    ({ hasRun, isRunning, forksWhileRunning, disabled }) => {
+      const forkItem = buildThreadActionMenuItems({
+        ...baseState,
+        hasRun,
+        isRunning,
+        forksWhileRunning,
+      }).find((item) => item.id === "fork");
+      expect(forkItem?.disabled).toBe(disabled);
+    },
+  );
+
+  it.each([
+    { instanceId: "claude-work", expected: true },
+    { instanceId: "codex", expected: false },
+    { instanceId: "unknown", expected: false },
+  ])("only Claude instances fork while running ($instanceId)", ({ instanceId, expected }) => {
+    const providers = [
+      {
+        instanceId: ProviderInstanceId.make("claude-work"),
+        driver: ProviderDriverKind.make("claudeAgent"),
+      },
+      { instanceId: ProviderInstanceId.make("codex"), driver: ProviderDriverKind.make("codex") },
+    ];
+    expect(providerForksWhileRunning(providers, ProviderInstanceId.make(instanceId))).toBe(
+      expected,
+    );
   });
 });

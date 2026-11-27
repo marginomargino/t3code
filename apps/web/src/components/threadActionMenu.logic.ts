@@ -1,4 +1,5 @@
-import type { ContextMenuItem } from "@t3tools/contracts";
+import type { ContextMenuItem, ProviderInstanceId, ServerProvider } from "@t3tools/contracts";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 import { msg } from "gt-react";
 
@@ -22,6 +23,7 @@ export type ThreadActionMenuId =
   | `snooze:${string}`
   | "unsnooze"
   | "rename"
+  | "fork"
   | "regenerate-title"
   | "mark-unread"
   | "share-guest"
@@ -120,6 +122,8 @@ export interface ThreadActionMenuState {
   readonly isRunning: boolean;
   /** The server marks unread against the latest run's completion, so in-flight runs cannot be. */
   readonly hasCompletedRun: boolean;
+  readonly hasRun: boolean;
+  readonly forksWhileRunning: boolean;
   readonly supports: {
     readonly settlement: boolean;
     readonly autoSettleOptOut: boolean;
@@ -132,6 +136,29 @@ export interface ThreadActionMenuState {
   readonly canShareWithGuest?: boolean;
   /** A No project thread with its own folder, on a server that can promote it. */
   readonly canTurnIntoProject?: boolean;
+}
+
+/** The server forks from the latest stable run; most providers refuse to fork mid-turn. */
+export function threadCanFork(input: {
+  readonly hasRun: boolean;
+  readonly isRunning: boolean;
+  readonly forksWhileRunning: boolean;
+}): boolean {
+  return input.hasRun && (!input.isRunning || input.forksWhileRunning);
+}
+
+/** Claude forks into its own session up to a finished turn, leaving a live parent turn untouched. */
+export function providerForksWhileRunning(
+  providers: ReadonlyArray<Pick<ServerProvider, "instanceId" | "driver">> | undefined,
+  instanceId: ProviderInstanceId,
+): boolean {
+  return (
+    providers?.find((provider) => provider.instanceId === instanceId)?.driver === "claudeAgent"
+  );
+}
+
+export function threadHasRun(thread: Pick<EnvironmentThreadShell, "latestRun">): boolean {
+  return thread.latestRun != null;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -237,6 +264,12 @@ export function buildThreadActionMenuItems(
       icon: "pencil",
       disabled: state.canRename === false,
       separatorBefore: true,
+    },
+    {
+      id: "fork",
+      label: resolve(msg("Fork thread")),
+      icon: "git-branch",
+      disabled: !threadCanFork(state),
     },
     ...(state.supports.titleRegeneration
       ? [

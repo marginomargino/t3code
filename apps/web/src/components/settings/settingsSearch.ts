@@ -552,6 +552,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "sidebar-fork-display",
+    title: msg("Show forks under parent"),
+    to: "/settings/general",
+    searchTerms: [msg("fork nested tree indent parent child threads sidebar")],
+  },
+  {
     id: "guest-links",
     title: msg("Guest links"),
     to: "/settings/labs",

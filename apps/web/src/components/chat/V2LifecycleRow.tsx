@@ -118,6 +118,16 @@ export function V2LifecycleRow(props: {
       />
     );
   }
+  if (item.type === "merge_back") {
+    return (
+      <TimelineSystemDivider
+        label={gt("Fork “{title}” merged back", { title: item.sourceThreadTitle })}
+        icon={GitForkIcon}
+        actionLabel={gt("Open fork")}
+        onAction={() => props.onOpenThread(item.sourceThreadId)}
+      />
+    );
+  }
   if (item.type === "thread_created") {
     if (props.resourceSummary) {
       return (
