@@ -106,6 +106,35 @@ const PI_MODEL_SELECTION = { instanceId: ProviderInstanceId.make("pi"), model: "
 const nativeId = ({ source }: ReturnType<typeof candidate>) =>
   source.provider === "pi" ? source.filePath : source.providerSessionId;
 
+const project = {
+  id: projectId,
+  title: "Project",
+  workspaceRoot: "/workspace/project",
+  defaultModelSelection: null,
+  scripts: [],
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  deletedAt: null,
+};
+
+function claudeMatch(
+  source: Extract<AgentSessionScanner.AgentSessionRecentThread, { _tag: "Importable" }>,
+): AgentSessionScanner.ClaudeSessionMatch {
+  return {
+    sessionId: source.source.providerSessionId,
+    title: source.thread.title,
+    cwd:
+      source.source.providerSessionId === "outside-project"
+        ? "/elsewhere"
+        : source.source.providerSessionId === "gone-folder"
+          ? "/gone"
+          : project.workspaceRoot,
+    filePath: source.source.filePath,
+    providerInstanceId: source.source.providerInstanceId,
+    mtimeMs: 2,
+  };
+}
+
 function importId(source: ReturnType<typeof candidate>) {
   return ThreadId.make(
     `import:${source.source.providerInstanceId}:${source.source.providerSessionId}`,
@@ -240,20 +269,44 @@ const makeImporter = Effect.fn(function* (
           realScan === undefined
             ? Layer.mock(AgentSessionScanner.AgentSessionScanner)({
                 recentThreads: () => Stream.fromIterable(candidates),
+                findClaudeSessions: (query) =>
+                  Effect.succeed(
+                    candidates.flatMap((entry) =>
+                      entry._tag === "Importable" &&
+                      entry.source.provider === "claudeAgent" &&
+                      entry.source.providerSessionId === query.toLowerCase()
+                        ? [claudeMatch(entry)]
+                        : [],
+                    ),
+                  ),
+                readClaudeSession: (match) =>
+                  Effect.succeed(
+                    candidates.flatMap((entry) =>
+                      entry._tag === "Importable" &&
+                      entry.source.providerSessionId === match.sessionId
+                        ? [entry]
+                        : [],
+                    )[0] ?? null,
+                  ),
               })
             : Layer.succeed(AgentSessionScanner.AgentSessionScanner, realScan.scanner),
           Layer.mock(ProjectService.ProjectService)({
             getById: () =>
               Effect.succeedSome({
-                id: projectId,
-                title: "Project",
-                workspaceRoot: realScan?.workspaceRoot ?? "/workspace/project",
-                defaultModelSelection: null,
-                scripts: [],
-                createdAt: timestamp,
-                updatedAt: timestamp,
-                deletedAt: null,
+                ...project,
+                workspaceRoot: realScan?.workspaceRoot ?? project.workspaceRoot,
               }),
+            getByWorkspaceRoot: (workspaceRoot) =>
+              workspaceRoot === "/gone"
+                ? Effect.fail(
+                    new ProjectService.ProjectOperationError({
+                      operation: "normalize-workspace",
+                      cause: "missing",
+                    }),
+                  )
+                : Effect.succeed(
+                    workspaceRoot === project.workspaceRoot ? Option.some(project) : Option.none(),
+                  ),
           }),
           Layer.mock(Orchestrator.OrchestratorV2)({
             getThreadRecords: (threadId, fields) =>
@@ -280,6 +333,7 @@ const makeImporter = Effect.fn(function* (
   return {
     run: importer.importRecentAgentThreads({ projectId }),
     importNativeHistory: importer.importNativeHistory,
+    importer,
     published,
   };
 });
@@ -1136,4 +1190,63 @@ it.effect("repeated imports reach linked-worktree sessions behind the scan budge
     );
     expect(oldest.worktreePath).toBe(worktree);
   }).pipe(Effect.scoped, Effect.provide(Layer.merge(persistence, NodeServices.layer))),
+);
+
+it.effect("imports one Claude session into its folder's project once", () =>
+  Effect.gen(function* () {
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const session = candidate(
+      CLAUDE_MODEL_SELECTION,
+      "6c1f4f0e-8d0b-4c55-9d1e-6a8f2f3b9a10",
+      "claudeAgent",
+    );
+    const owned = candidate(
+      CLAUDE_MODEL_SELECTION,
+      "0a7c5e2b-5b8e-4f6e-8d38-1c3a4b5d6e7f",
+      "claudeAgent",
+    );
+    const outside = candidate(CLAUDE_MODEL_SELECTION, "outside-project", "claudeAgent");
+    const gone = candidate(CLAUDE_MODEL_SELECTION, "gone-folder", "claudeAgent");
+    const unresumable = candidate(CLAUDE_MODEL_SELECTION, "not-a-uuid", "claudeAgent");
+    yield* seedOwner(owned);
+    const { importer, published } = yield* makeImporter([
+      session,
+      owned,
+      outside,
+      gone,
+      unresumable,
+    ]);
+    const sessionId = session.source.providerSessionId;
+
+    const first = yield* importer.importClaudeSession({ sessionId });
+    expect(first).toEqual({ threadId: importId(session), projectId });
+    const records = yield* projections.getThreadRecords(first.threadId, ["messages"]);
+    expect(records.messages.map((message) => message.text)).toEqual(["Fix it", "Fixed"]);
+    const publishedAfterFirst = published.length;
+    expect(yield* importer.importClaudeSession({ sessionId: sessionId.toUpperCase() })).toEqual(
+      first,
+    );
+    expect(published).toHaveLength(publishedAfterFirst);
+
+    const errors = yield* Effect.forEach(
+      [
+        "missing-session",
+        owned.source.providerSessionId,
+        "outside-project",
+        "gone-folder",
+        "not-a-uuid",
+      ],
+      (id) => Effect.flip(importer.importClaudeSession({ sessionId: id })),
+    );
+    expect(errors.map((error) => error._tag)).toEqual([
+      "ClaudeSessionNotFoundError",
+      "ClaudeSessionInUseError",
+      "ClaudeSessionProjectNotFoundError",
+      "ClaudeSessionProjectNotFoundError",
+      "ClaudeSessionNotFoundError",
+    ]);
+    // A session whose folder no longer exists still lists, without a project.
+    const listed = yield* importer.searchClaudeSessions({ query: "gone-folder" });
+    expect(listed.sessions.map((entry) => entry.projectId)).toEqual([null]);
+  }).pipe(Effect.scoped, Effect.provide(persistence)),
 );

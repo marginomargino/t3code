@@ -23,6 +23,7 @@ import { UseInAnotherAppDialogHost } from "../components/mcp/UseInAnotherAppDial
 import { AddProjectToMachineDialogHost } from "../components/AddProjectToMachineDialog";
 import { ConfirmDialogHost } from "../components/ConfirmDialogHost";
 import { WorktreeLayoutApprovalDialogHost } from "../components/WorktreeLayoutApprovalDialogHost";
+import { ImportClaudeSessionDialogHost } from "../components/ImportClaudeSessionDialog";
 import { DevReplayHost } from "../components/DevReplayHost";
 import { FirstRunGate } from "../components/onboarding/FirstRunGate";
 import { ConnectOnboardingDialog } from "../components/cloud/ConnectOnboardingDialog";
@@ -212,6 +213,7 @@ function RootRouteBranch() {
       <ConnectDeviceApprovalCoordinator />
       <AddProjectToMachineDialogHost />
       <UseInAnotherAppDialogHost />
+      <ImportClaudeSessionDialogHost />
       {import.meta.env.DEV && primaryEnvironmentAuthenticated ? <DevReplayHost /> : null}
     </>
   );

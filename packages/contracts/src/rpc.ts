@@ -123,6 +123,13 @@ import {
   AgentSessionScanInput,
   AgentSessionScanResult,
   AgentSessionScanError,
+  ClaudeSessionImportInput,
+  ClaudeSessionImportResult,
+  ClaudeSessionInUseError,
+  ClaudeSessionNotFoundError,
+  ClaudeSessionProjectNotFoundError,
+  ClaudeSessionSearchInput,
+  ClaudeSessionSearchResult,
 } from "./agentSessions.ts";
 import {
   AssetAccessError,
@@ -524,6 +531,8 @@ export const WS_METHODS = {
   filesystemGetMetadata: "filesystem.getMetadata",
   agentSessionsScan: "agentSessions.scan",
   agentSessionsImport: "agentSessions.import",
+  agentSessionsSearchClaude: "agentSessions.searchClaude",
+  agentSessionsImportClaude: "agentSessions.importClaude",
   assetsCreateUrl: "assets.createUrl",
   assetsPersistChatAttachments: "assets.persistChatAttachments",
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
@@ -1793,6 +1802,24 @@ const WsAgentSessionsImportRpc = Rpc.make(WS_METHODS.agentSessionsImport, {
   ]),
 });
 
+const WsAgentSessionsSearchClaudeRpc = Rpc.make(WS_METHODS.agentSessionsSearchClaude, {
+  payload: ClaudeSessionSearchInput,
+  success: ClaudeSessionSearchResult,
+  error: Schema.Union([AgentSessionScanError, EnvironmentAuthorizationError]),
+});
+
+const WsAgentSessionsImportClaudeRpc = Rpc.make(WS_METHODS.agentSessionsImportClaude, {
+  payload: ClaudeSessionImportInput,
+  success: ClaudeSessionImportResult,
+  error: Schema.Union([
+    ClaudeSessionInUseError,
+    ClaudeSessionNotFoundError,
+    ClaudeSessionProjectNotFoundError,
+    AgentSessionScanError,
+    EnvironmentAuthorizationError,
+  ]),
+});
+
 const WsAssetsCreateUrlRpc = Rpc.make(WS_METHODS.assetsCreateUrl, {
   payload: AssetCreateUrlInput,
   success: AssetCreateUrlResult,
@@ -2711,6 +2738,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsFilesystemGetMetadataRpc,
   WsAgentSessionsScanRpc,
   WsAgentSessionsImportRpc,
+  WsAgentSessionsSearchClaudeRpc,
+  WsAgentSessionsImportClaudeRpc,
   WsAssetsCreateUrlRpc,
   WsAssetsPersistChatAttachmentsRpc,
   WsAttachmentsCreateUploadUrlRpc,
