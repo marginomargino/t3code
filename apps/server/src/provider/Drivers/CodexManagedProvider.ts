@@ -291,6 +291,7 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
         "generateTranscriptionPostProcessing",
         nativeGeneration.generateTranscriptionPostProcessing(value),
       ),
+    findThreads: (value) => protect("findThreads", nativeGeneration.findThreads(value)),
   };
   return {
     instanceId,

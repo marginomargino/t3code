@@ -185,7 +185,11 @@ import {
   ReviewDiffPreviewResult,
 } from "./review.ts";
 import { KeybindingsConfigError } from "./keybindings.ts";
-import { OrchestrationSearchThreadsError } from "./threadSearch.ts";
+import {
+  OrchestrationFindThreadsByDescriptionInput,
+  OrchestrationFindThreadsByDescriptionResult,
+  OrchestrationSearchThreadsError,
+} from "./threadSearch.ts";
 import {
   ProviderMcpSignInCompleteInput,
   ProviderMcpSignInCompleteResult,
@@ -2185,6 +2189,15 @@ const WsOrchestrationV2SearchThreadsRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.s
   error: Schema.Union([OrchestrationSearchThreadsError, EnvironmentAuthorizationError]),
 });
 
+const WsOrchestrationV2FindThreadsByDescriptionRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.findThreadsByDescription,
+  {
+    payload: OrchestrationFindThreadsByDescriptionInput,
+    success: OrchestrationFindThreadsByDescriptionResult,
+    error: Schema.Union([OrchestrationSearchThreadsError, EnvironmentAuthorizationError]),
+  },
+);
+
 const WsOrchestrationV2GetArchivedShellSnapshotRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,
   {
@@ -2765,6 +2778,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2GetTurnDiffRpc,
   WsOrchestrationV2GetFullThreadDiffRpc,
   WsOrchestrationV2SearchThreadsRpc,
+  WsOrchestrationV2FindThreadsByDescriptionRpc,
   WsOrchestrationV2SearchThreadRpc,
   WsOrchestrationV2SearchThreadStreamRpc,
   WsOrchestrationV2GetArchivedShellSnapshotRpc,
