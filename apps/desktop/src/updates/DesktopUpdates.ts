@@ -417,10 +417,12 @@ export const make = Effect.gen(function* () {
     Ref.get(releaseFloorRef).pipe(
       Effect.map(
         (floor) =>
-          desktopUpdateChannelOf(version) === state.channel &&
-          (Option.isSome(floor)
-            ? compareSemverVersions(version, floor.value) >= 0
-            : desktopUpdateChannelOf(environment.appVersion) === state.channel),
+          // An updater with its own feed has no release channels.
+          electronUpdater.providesOwnFeed ||
+          (desktopUpdateChannelOf(version) === state.channel &&
+            (Option.isSome(floor)
+              ? compareSemverVersions(version, floor.value) >= 0
+              : desktopUpdateChannelOf(environment.appVersion) === state.channel)),
       ),
     );
   const updateStateRef = yield* Ref.make<DesktopUpdateState>(
@@ -480,7 +482,10 @@ export const make = Effect.gen(function* () {
   const hasUpdateFeedConfig = Ref.get(appUpdateYmlConfigRef).pipe(
     Effect.map(
       (appUpdateYmlConfig) =>
-        Option.isSome(appUpdateYmlConfig) || mockUpdates || policy.feedUrl !== undefined,
+        Option.isSome(appUpdateYmlConfig) ||
+        mockUpdates ||
+        policy.feedUrl !== undefined ||
+        electronUpdater.providesOwnFeed,
     ),
   );
 
@@ -494,7 +499,8 @@ export const make = Effect.gen(function* () {
         platform: environment.platform,
         appImage: Option.getOrUndefined(config.appImagePath),
         isDebPackage,
-        disabledByEnv: config.disableAutoUpdate,
+        // The env flag guards against the official feed; an updater with its own feed ignores it.
+        disabledByEnv: config.disableAutoUpdate && !electronUpdater.providesOwnFeed,
         hasUpdateFeedConfig: hasFeedConfig,
       }),
     );
