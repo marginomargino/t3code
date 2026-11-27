@@ -25,7 +25,7 @@ Threads don't require a project. Pick **No project** (or press `mod+alt+n` on we
 
 - **Resize or hide** (web/desktop): Drag the sidebar's right edge past its minimum width to hide it; hover the left window edge and click or drag the handle to bring it back.
 - **Drop files onto a thread** (web/desktop): Drag files from your computer onto any thread row to open it and attach them to its composer.
-- **Pin and reorder**: Pin a thread from its menu or drag threads between **Pinned**, **Active**, and **Settled** (or drag out of **Snoozed** to wake). On mobile, use **Arrange threads** or **Move up / Move down** in the thread menu. Custom order syncs across devices (requires an up-to-date server).
+- **Pin and reorder**: Pin a thread from its menu or drag threads between **Pinned**, **Active**, and **Settled** (or drag out of **Snoozed** to wake). On mobile, use **Arrange threads** or **Move up / Move down** in the thread menu. Custom order syncs across devices (requires an up-to-date server). On web and desktop without project folders, Active is ordered by recent activity instead: a thread rises when you message it or its agent finishes a turn.
 - **Undo** (web/desktop): Unpinning, settling, snoozing, archiving, or discarding a draft shows a 5-second **Undo** toast (`mod+z`).
 - **Titles**: Choose **Regenerate title** from a thread's menu, or customize title style in **Settings → Threads → Text generation → Thread title instructions** (global or per-project).
 
@@ -33,7 +33,7 @@ Threads don't require a project. Pick **No project** (or press `mod+alt+n` on we
 
 Enabled by default (**Settings → General → Working section**, per device). Unpinned threads that are actively running—or waiting on subagents, watched PRs, or monitors—collapse into a **Working** section below Active, and return to the top of Active when they finish, fail, or need input.
 
-While enabled, Active is sorted by most recent return (manual reordering is paused until you turn it off).
+While enabled, Active is sorted by most recent return (manual reordering is paused until you turn it off; on mobile your saved order returns, while web and desktop keep ordering Active by recent activity).
 
 ### Group threads by project (beta)
 
