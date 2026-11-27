@@ -48,6 +48,7 @@ import {
   THREAD_DETAILS_PANEL_LABEL_CLASS,
 } from "./threadDetailsPanelStyles";
 import { Menu, MenuPopup } from "../ui/menu";
+import { ThreadUsagePanel } from "./ThreadUsagePanel";
 
 interface ThreadDetailsPanelProps extends Pick<
   ComponentProps<typeof ThreadDetailsCard>,
@@ -352,6 +353,8 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 </ThreadDetailsControl>
               </div>
             </div>
+
+            {density === "full" ? <ThreadUsagePanel /> : null}
 
             <Menu
               open={menuPosition !== null}
